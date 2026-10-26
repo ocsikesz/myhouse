@@ -87,3 +87,57 @@ export function billedInYear(
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+export interface MonthBreakdown {
+  /** YYYY-MM */
+  month: string;
+  index: number | null;
+  consumption: number | null;
+  /** Suma facturilor emise în luna respectivă (null = nicio factură găsită) */
+  billed: number | null;
+  /** Rest de plată din facturile lunii */
+  unpaid: number;
+  /** Plățile făcute în luna respectivă */
+  paid: number | null;
+}
+
+/**
+ * Defalcarea pe luni a anului: index, consum, facturat și plătit.
+ * Lunile fără niciun fel de date nu apar. Cea mai nouă lună prima.
+ */
+export function buildMonthBreakdown(
+  year: number,
+  monthly: { month: string; consumption: number | null; index_value: number | null }[],
+  invoices: { issue_date: string | null; due_date: string | null; amount: number; unpaid: number; paid: number | boolean }[],
+  payments: { paid_on: string; amount: number }[],
+): MonthBreakdown[] {
+  const y = String(year);
+  const rows = new Map<string, MonthBreakdown>();
+  const row = (month: string) => {
+    let r = rows.get(month);
+    if (!r) {
+      r = { month, index: null, consumption: null, billed: null, unpaid: 0, paid: null };
+      rows.set(month, r);
+    }
+    return r;
+  };
+  for (const m of monthly) {
+    if (!m.month.startsWith(y) || (m.consumption === null && m.index_value === null)) continue;
+    const r = row(m.month);
+    if (m.consumption !== null) r.consumption = m.consumption;
+    if (m.index_value !== null) r.index = m.index_value;
+  }
+  for (const inv of invoices) {
+    const d = inv.issue_date ?? inv.due_date;
+    if (!d?.startsWith(y)) continue;
+    const r = row(d.slice(0, 7));
+    r.billed = (r.billed ?? 0) + inv.amount;
+    if (!inv.paid) r.unpaid += inv.unpaid;
+  }
+  for (const p of payments) {
+    if (!p.paid_on.startsWith(y)) continue;
+    const r = row(p.paid_on.slice(0, 7));
+    r.paid = (r.paid ?? 0) + p.amount;
+  }
+  return [...rows.values()].sort((a, b) => b.month.localeCompare(a.month));
+}

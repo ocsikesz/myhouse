@@ -33,3 +33,26 @@ test('starea facturii', () => {
   assert.equal(invoiceState({ paid: 0, unpaid: 50, due_date: '2026-11-20' }, '2026-10-26'), 'due');
   assert.equal(invoiceState({ paid: 0, unpaid: 0, due_date: null }, '2026-10-26'), 'paid');
 });
+
+import { buildMonthBreakdown } from '../src/lib/yearStats';
+
+test('defalcare pe luni: consum, index, facturat, plătit', () => {
+  const rows = buildMonthBreakdown(
+    2026,
+    [
+      { month: '2025-12', consumption: 90, index_value: 1000 },
+      { month: '2026-01', consumption: 100, index_value: 1100 },
+      { month: '2026-02', consumption: 80, index_value: null },
+    ],
+    [
+      { issue_date: '2026-01-10', due_date: '2026-01-30', amount: 250.5, unpaid: 0, paid: 1 },
+      { issue_date: '2026-02-10', due_date: '2026-02-28', amount: 200, unpaid: 200, paid: 0 },
+      { issue_date: '2025-12-10', due_date: null, amount: 999, unpaid: 0, paid: 1 },
+    ],
+    [{ paid_on: '2026-01-20', amount: 250.5 }, { paid_on: '2026-03-02', amount: 50 }],
+  );
+  assert.deepEqual(rows.map((r) => r.month), ['2026-03', '2026-02', '2026-01']);
+  assert.deepEqual(rows[2], { month: '2026-01', index: 1100, consumption: 100, billed: 250.5, unpaid: 0, paid: 250.5 });
+  assert.equal(rows[1].unpaid, 200);
+  assert.equal(rows[0].paid, 50);
+});
