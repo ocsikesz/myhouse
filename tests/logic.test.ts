@@ -36,3 +36,15 @@ test('telefon și mesaj WhatsApp', () => {
   ]);
   assert.equal(msg, 'Bună ziua! Indexuri apă rece – Str. X 10, ap. 5, 26.10.2026:\nBucătărie: 123,400 m³\nBaie: 98,765 m³');
 });
+
+import { addMonths, daysBetween, parseRoDate } from '../src/lib/format';
+
+test('date și luni', () => {
+  assert.equal(parseRoDate('25.11.2026'), '2026-11-25');
+  assert.equal(parseRoDate('5/1/2027'), '2027-01-05');
+  assert.equal(parseRoDate('31.02.2026'), null);
+  assert.equal(addMonths('2026-01', -1), '2025-12');
+  assert.equal(addMonths('2026-10', 3), '2027-01');
+  assert.equal(addMonths('2026-10', -12), '2025-10');
+  assert.equal(daysBetween('2026-10-26', '2026-11-02'), 7);
+});

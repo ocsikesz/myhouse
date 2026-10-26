@@ -12,9 +12,9 @@ export default function UtilitiesScreen() {
         <Title color={t.water}>Apă rece</Title>
         <Body muted>Deservcom · bucătărie și baie · trimitere pe WhatsApp</Body>
       </Card>
-      <Card>
-        <Title>Asociația de proprietari</Title>
-        <Body muted>În lucru — pasul 3</Body>
+      <Card onPress={() => router.push('/asociatie')}>
+        <Title color={t.accent}>Asociația de proprietari</Title>
+        <Body muted>Consumul lunar · plătit / neplătit · scadență</Body>
       </Card>
       <Card>
         <Title color={t.gas}>E.ON</Title>
