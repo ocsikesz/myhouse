@@ -2,17 +2,20 @@
 
 Aplicație privată (Android, Expo) pentru administrarea utilităților casei.
 
-## Stadiu
+## Ce face
 
-| Pas | Ce face | Stare |
-| --- | --- | --- |
-| 1 | Proiect Expo, SQLite cu migrații, structura de ecrane | ✅ |
-| 2 | Apă rece (Deservcom): 2 contoare, consum, trimitere pe WhatsApp | ⏳ |
-| 3 | Asociația de proprietari: suma lunară, plătit / neplătit | ⏳ |
-| 4 | E.ON Myline: login, fereastră autocitire, ultimul index, trimitere | ⏳ |
-| 5 | Electrica (MyElectrica): la fel | ⏳ |
-| 6 | Verificare în fundal, notificări, panou cu grafice | ⏳ |
-| 7 | Opțional: detectarea mesajului WhatsApp de la reprezentantul de apă | ⏳ |
+| Zonă | Funcții |
+| --- | --- |
+| Apă rece (Deservcom) | index bucătărie + baie, poză contor, validare, consum, mesaj WhatsApp precompletat către reprezentant |
+| Asociația | suma lunară, scadență, plătit / neplătit, total 12 luni |
+| E.ON Myline | login (cu 2FA), contracte gaz/curent (inclusiv DUO), index facturat, fereastră autocitire, trimitere index |
+| MyElectrica | login, locuri de consum, index, fereastră PAC, trimitere index |
+| Reminder-e | verificare în fundal la ~4 ore, notificare la deschiderea ferestrei și în ultima zi, apă, asociație |
+| Istoric | grafice de consum lunar pe 12 luni |
+
+API-urile E.ON și Electrica sunt neoficiale (cele folosite de aplicațiile mobile), portate din
+[cnecrea/eonromania](https://github.com/cnecrea/eonromania) și [cnecrea/myelectrica](https://github.com/cnecrea/myelectrica) (MIT).
+Dacă furnizorii le schimbă, integrarea trebuie actualizată.
 
 ## Structură
 
@@ -22,7 +25,10 @@ src/
     (tabs)/       Acasă, Utilități, Istoric, Setări
   components/     componente UI comune
   db/             schema SQLite, migrații (PRAGMA user_version), repository
-  lib/            formatare RO, calcul consum, temă, hook-uri
+  providers/      clienți API E.ON / Electrica, credențiale (SecureStore), sincronizare
+  background/     task de fundal: sincronizare + notificări
+  lib/            formatare RO, consum, sarcini/reminder-e, notificări, temă
+tests/            teste pentru logica pură și clienții API (fetch simulat)
 ```
 
 ## Comenzi
@@ -31,6 +37,7 @@ src/
 npm install
 npx expo start            # dev server
 npm run typecheck         # tsc --noEmit
+npm test                  # teste logică + clienți API
 npx expo run:android      # development build (expo-sqlite are cod nativ, nu merge în Expo Go vechi)
 ```
 
