@@ -40,6 +40,15 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "CasaMea folosește camera ca să fotografiezi contoarele.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#2F6F5E"

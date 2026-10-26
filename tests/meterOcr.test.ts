@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { extractRuns, findMeterCandidates, interpretations, normalizeDigits, type OcrInput } from '../src/lib/meterOcr';
+import { cropOcr, extractRuns, findMeterCandidates, interpretations, normalizeDigits, type OcrInput } from '../src/lib/meterOcr';
 
 /** Ajutor: un rând OCR din elemente [text, left, top, width, height] */
 function line(...els: [string, number, number, number, number][]) {
@@ -73,6 +73,22 @@ test('contor apă ABB: ultimul tambur între 0 și 1 → o cifră în plus; seri
   };
   const c = findMeterCandidates(input, { previous: 2259.4, typicalDelta: 3.5, maxDecimals: 3 });
   assert.equal(c[0].value, 2263.12);
+});
+
+test('cadrul de încadrare păstrează doar indexul', () => {
+  // Poză 1000×1333; cadrul îngust: 7–93% lățime, 40–60% înălțime
+  const input: OcrInput = {
+    lines: [
+      line(['Qn', 200, 300, 60, 40], ['1,5', 270, 300, 70, 40]),
+      line(['2263', 150, 620, 330, 110], ['1201', 490, 620, 200, 110]),
+      line(['04203881', 300, 1000, 380, 90]),
+    ],
+  };
+  const cropped = cropOcr(input, 1000, 1333, { left: 0.07, right: 0.93, top: 0.4, bottom: 0.6 });
+  assert.deepEqual(cropped.lines.map((l) => l.text), ['2263 1201']);
+  // Fără istoric, în cadru rămâne doar indexul → primul candidat e din tamburi, nu seria
+  const c = findMeterCandidates(cropped, { previous: null, typicalDelta: null, maxDecimals: 3 });
+  assert.ok(c.every((x) => String(Math.trunc(x.value)).startsWith('2263')));
 });
 
 test('contor curent: fără istoric, alege numărul mare de 5-6 cifre', () => {

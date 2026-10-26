@@ -12,11 +12,15 @@ export async function takeMeterPhoto(prefix: string, crop = false): Promise<stri
   // Cu decupare: încadrezi doar cifrele, iar recunoașterea e mult mai sigură
   const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: crop });
   if (result.canceled || !result.assets?.[0]) return null;
+  return persistPhoto(result.assets[0].uri, prefix);
+}
 
+/** Copiază o poză din cache în directorul permanent al aplicației. */
+export async function persistPhoto(uri: string, prefix: string): Promise<string> {
   const dir = new Directory(Paths.document, 'photos');
   dir.create({ idempotent: true });
   const dest = new File(dir, `${prefix}-${Date.now()}.jpg`);
-  await new File(result.assets[0].uri).copy(dest);
+  await new File(uri).copy(dest);
   return dest.uri;
 }
 

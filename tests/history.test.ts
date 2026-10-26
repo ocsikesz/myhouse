@@ -146,10 +146,25 @@ test('Electrica: cont contract, facturi, citiri → lunar', () => {
   ]);
   assert.deepEqual(readings.map((r) => r.index), [15650, 15838, 15950]);
   const monthly = electricaReadingsToMonthly(readings);
+  // Consumul se repartizează pe zile între citiri
   assert.deepEqual(monthly.map((m) => [m.month, m.consumption, m.index]), [
-    ['2026-08', null, 15650],
-    ['2026-09', 188, 15838],
-    ['2026-10', 112, 15950],
+    ['2026-08', 64.63, 15650],
+    ['2026-09', 158.13, 15838],
+    ['2026-10', 77.24, 15950],
+  ]);
+});
+
+test('Electrica: citiri la 3 luni → consum pe fiecare lună', () => {
+  const m = electricaReadingsToMonthly([
+    { date: '2026-04-01', index: 1000, type: 'citit distribuitor' },
+    { date: '2026-07-01', index: 1910, type: 'citit distribuitor' },
+    { date: '2026-06-01', index: 900, type: 'autocitit' }, // scade → ignorată
+  ]);
+  assert.deepEqual(m.map((r) => [r.month, r.consumption, r.index]), [
+    ['2026-04', 300, 1000],
+    ['2026-05', 310, null],
+    ['2026-06', 300, null],
+    ['2026-07', null, 1910],
   ]);
 });
 

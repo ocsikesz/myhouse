@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MeterCamera } from '@/components/MeterCamera';
 import { Button } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
-import type { MeterExpectation } from '@/lib/meterOcr';
-import { scanMeter, type ScanResult } from '@/lib/scanMeter';
+import type { MeterExpectation, Rect } from '@/lib/meterOcr';
+import { readMeterPhoto, type ScanResult } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -31,14 +32,15 @@ export function ScanButton({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [camera, setCamera] = useState(false);
 
   const toText = (v: number) => (decimals === 0 ? String(Math.trunc(v)) : formatNumber(v, decimals).replace(/\./g, ''));
 
-  async function onScan() {
+  async function onCapture(photo: { uri: string; region: Rect }) {
+    setCamera(false);
     setBusy(true);
     try {
-      const r = await scanMeter(prefix, expectation);
-      if (!r) return;
+      const r = await readMeterPhoto(photo.uri, expectation, photo.region);
       setResult(r);
       onPhoto(r.photoUri);
       if (r.candidates[0]) {
@@ -60,11 +62,12 @@ export function ScanButton({
 
   return (
     <View style={{ gap: 8 }}>
+      <MeterCamera visible={camera} prefix={prefix} onCancel={() => setCamera(false)} onCapture={onCapture} />
       <View style={styles.row}>
         <Button
           title={result ? 'Fă altă poză' : 'Fotografiază și citește'}
           variant="secondary"
-          onPress={onScan}
+          onPress={() => setCamera(true)}
           loading={busy}
           style={{ flex: 1 }}
         />

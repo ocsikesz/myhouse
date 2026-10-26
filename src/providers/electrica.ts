@@ -312,19 +312,67 @@ export class ElectricaClient {
  * Din citiri cumulative → rânduri lunare: consumul dintre citiri consecutive
  * merge în luna citirii mai noi; indexul lunii e ultima citire din lună.
  */
+/**
+ * Citiri → consum lunar. Electrica citește contorul cam o dată la 3 luni, deci
+ * între două citiri nu știm consumul fiecărei luni. Îl repartizăm pe zile:
+ * fiecare zi dintre citiri primește aceeași parte din diferența de index, iar
+ * luna adună zilele ei. Lunile cu citire primesc și indexul.
+ * Citirile care scad față de cea anterioară (greșite/anulate) sunt ignorate.
+ */
 export function electricaReadingsToMonthly(
   readings: ElectricaReading[],
-): { month: string; consumption: number | null; index: number; readingType: string | null }[] {
-  const byMonth = new Map<string, { month: string; consumption: number | null; index: number; readingType: string | null }>();
-  for (let i = 0; i < readings.length; i++) {
-    const r = readings[i];
-    const month = r.date.slice(0, 7);
-    const prev = readings[i - 1];
-    const delta = prev && r.index >= prev.index ? r.index - prev.index : null;
-    const existing = byMonth.get(month);
-    const consumption =
-      delta === null ? existing?.consumption ?? null : (existing?.consumption ?? 0) + delta;
-    byMonth.set(month, { month, consumption, index: r.index, readingType: r.type });
+): { month: string; consumption: number | null; index: number | null; readingType: string | null }[] {
+  // O citire pe zi (ultima), apoi doar cele care nu scad
+  const byDay = new Map<string, ElectricaReading>();
+  for (const r of [...readings].sort((a, b) => a.date.localeCompare(b.date))) byDay.set(r.date, r);
+  const sorted: ElectricaReading[] = [];
+  for (const r of byDay.values()) {
+    if (sorted.length === 0 || r.index >= sorted[sorted.length - 1].index) sorted.push(r);
   }
-  return [...byMonth.values()];
+
+  const rows = new Map<string, { month: string; consumption: number | null; index: number | null; readingType: string | null }>();
+  const row = (month: string) => {
+    let r = rows.get(month);
+    if (!r) {
+      r = { month, consumption: null, index: null, readingType: null };
+      rows.set(month, r);
+    }
+    return r;
+  };
+
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    const r = row(cur.date.slice(0, 7));
+    r.index = cur.index;
+    r.readingType = cur.type;
+    const prev = sorted[i - 1];
+    if (!prev) continue;
+    const days = dayDiff(prev.date, cur.date);
+    if (days <= 0) continue;
+    const perDay = (cur.index - prev.index) / days;
+    // Zilele [prev, cur): numărăm câte cad în fiecare lună
+    let d = prev.date;
+    while (d < cur.date) {
+      const month = d.slice(0, 7);
+      const monthEnd = nextMonthStart(month);
+      const until = monthEnd < cur.date ? monthEnd : cur.date;
+      const target = row(month);
+      target.consumption = (target.consumption ?? 0) + perDay * dayDiff(d, until);
+      d = until;
+    }
+  }
+
+  return [...rows.values()]
+    .map((r) => ({ ...r, consumption: r.consumption === null ? null : Math.round(r.consumption * 100) / 100 }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function dayDiff(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** '2026-09' → '2026-10-01' */
+function nextMonthStart(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
 }

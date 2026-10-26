@@ -5,6 +5,7 @@ import {
   deactivateMissingMeters,
   getProviderStatus,
   latestReading,
+  listReadings,
   saveProviderStatus,
   getSetting,
   saveProviderInvoices,
@@ -205,8 +206,14 @@ export async function syncElectrica(db: SQLiteDatabase, force = false): Promise<
         if (!invoicesCache.has(key)) invoicesCache.set(key, await client.getInvoices(p.clientCode, p.contractAccount, from, today));
         // Consumul lunii se calculează din citirea anterioară, deci filtrăm după calcul
         const readings = await client.getReadings(p.clientCode, p.nlc);
+        // Și indexurile salvate în aplicație (autocitirile tale): împart mai fin
+        // intervalele de ~3 luni dintre citirile Electrica
+        const known = new Set(readings.map((r) => r.date));
+        const local = (await listReadings(db, meterIdFor('electrica', p.nlc), 120))
+          .filter((r) => !known.has(r.read_at))
+          .map((r) => ({ date: r.read_at, index: r.value, type: 'autocitit' }));
         history = {
-          monthly: electricaReadingsToMonthly(readings).filter((r) => r.month >= from.slice(0, 7)),
+          monthly: electricaReadingsToMonthly([...readings, ...local]).filter((r) => r.month >= from.slice(0, 7)),
           invoices: invoicesCache.get(key) ?? [],
           invoicesComplete: true,
           payments: [],

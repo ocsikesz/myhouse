@@ -2,8 +2,7 @@ import { recognizeText } from 'casamea-native';
 
 import type { Reading } from '@/db/types';
 
-import { findMeterCandidates, type Candidate, type MeterExpectation } from './meterOcr';
-import { takeMeterPhoto } from './photos';
+import { cropOcr, findMeterCandidates, type Candidate, type MeterExpectation, type Rect } from './meterOcr';
 
 export interface ScanResult {
   photoUri: string;
@@ -28,18 +27,24 @@ export function expectationFrom(history: Reading[], maxDecimals: number, previou
   };
 }
 
-/** Face poza (cu decupare) și citește indexul. null dacă utilizatorul a renunțat. */
-export async function scanMeter(prefix: string, expectation: MeterExpectation): Promise<ScanResult | null> {
-  // Poză întreagă (fără decupare): o trimiți și ca dovadă; OCR-ul alege singur cifrele mari
-  const photoUri = await takeMeterPhoto(prefix, false);
-  if (!photoUri) return null;
+/**
+ * Citește indexul de pe poză. Cu `region` (cadrul de încadrare, în fracții din
+ * poză) se uită întâi doar acolo; dacă în cadru nu găsește cifre, ia toată poza.
+ * Poza rămâne întreagă — o trimiți și ca dovadă.
+ */
+export async function readMeterPhoto(photoUri: string, expectation: MeterExpectation, region?: Rect): Promise<ScanResult> {
   try {
     const ocr = await recognizeText(photoUri);
-    const candidates = findMeterCandidates(ocr, expectation);
+    let candidates: Candidate[] = [];
+    // Cadrul e calculat pentru o poză în picioare; dacă poza a ieșit culcată, îl ignorăm
+    if (region && ocr.height >= ocr.width) candidates = findMeterCandidates(cropOcr(ocr, ocr.width, ocr.height, region), expectation);
+    if (candidates.length === 0) candidates = findMeterCandidates(ocr, expectation);
     return {
       photoUri,
       candidates,
-      error: candidates.length ? null : 'N-am găsit cifrele pe poză. Încearcă mai aproape, cu doar cadranul în cadru, sau scrie indexul de mână.',
+      error: candidates.length
+        ? null
+        : 'N-am găsit cifrele pe poză. Încadrează doar indexul în dreptunghi, mai aproape și cu lumină, sau scrie-l de mână.',
     };
   } catch (e) {
     return { photoUri, candidates: [], error: e instanceof Error ? e.message : String(e) };

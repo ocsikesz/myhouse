@@ -142,7 +142,31 @@ export function interpretations(
   return out;
 }
 
-const intDigitsOf = (n: number) => String(Math.trunc(Math.abs(n))).length;
+/**
+ * Păstrează doar textul din cadrul de încadrare. `region` e în fracții din poză
+ * (0–1). Un element intră dacă centrul lui e în cadru (cu puțină toleranță,
+ * fiindcă telefonul se mișcă un pic la declanșare).
+ */
+export function cropOcr(input: OcrInput, width: number, height: number, region: Rect, tolerance = 0.06): OcrInput {
+  const l = (region.left - tolerance) * width;
+  const r = (region.right + tolerance) * width;
+  const tp = (region.top - tolerance) * height;
+  const b = (region.bottom + tolerance) * height;
+  const inside = (f: Rect) => {
+    const cx = (f.left + f.right) / 2;
+    const cy = (f.top + f.bottom) / 2;
+    return cx >= l && cx <= r && cy >= tp && cy <= b;
+  };
+  const lines: OcrInput['lines'] = [];
+  for (const line of input.lines) {
+    const elements = line.elements.filter((e) => inside(e.frame));
+    if (elements.length === 0) continue;
+    lines.push({ ...line, text: elements.map((e) => e.text).join(' '), elements });
+  }
+  return { lines };
+}
+
+const intDigitsOf =(n: number) => String(Math.trunc(Math.abs(n))).length;
 
 export function findMeterCandidates(input: OcrInput, exp: MeterExpectation, limit = 4): Candidate[] {
   const runs = extractRuns(input);
