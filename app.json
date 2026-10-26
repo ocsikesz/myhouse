@@ -24,7 +24,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "CasaMea folosește camera ca să fotografiezi contoarele.",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "casamea",
     "experiments": {

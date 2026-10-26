@@ -1,23 +1,29 @@
-import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
+import { router } from 'expo-router';
 
-const PROVIDERS = [
-  { title: 'Apă rece', subtitle: 'Deservcom · introducere manuală, trimitere pe WhatsApp', step: 2 },
-  { title: 'Asociația de proprietari', subtitle: 'Consumul lunar · plătit / neplătit', step: 3 },
-  { title: 'E.ON', subtitle: 'Cont Myline · fereastră autocitire, trimitere index', step: 4 },
-  { title: 'Electrica', subtitle: 'Cont MyElectrica · fereastră autocitire, trimitere index', step: 5 },
-];
+import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
+import { useTheme } from '@/lib/theme';
 
 export default function UtilitiesScreen() {
+  const t = useTheme();
   return (
     <Screen>
       <SectionTitle>Utilități</SectionTitle>
-      {PROVIDERS.map((p) => (
-        <Card key={p.title}>
-          <Title>{p.title}</Title>
-          <Body muted>{p.subtitle}</Body>
-          <Body muted>În lucru — pasul {p.step}</Body>
-        </Card>
-      ))}
+      <Card onPress={() => router.push('/apa')}>
+        <Title color={t.water}>Apă rece</Title>
+        <Body muted>Deservcom · bucătărie și baie · trimitere pe WhatsApp</Body>
+      </Card>
+      <Card>
+        <Title>Asociația de proprietari</Title>
+        <Body muted>În lucru — pasul 3</Body>
+      </Card>
+      <Card>
+        <Title color={t.gas}>E.ON</Title>
+        <Body muted>În lucru — pasul 4</Body>
+      </Card>
+      <Card>
+        <Title color={t.electricity}>Electrica</Title>
+        <Body muted>În lucru — pasul 5</Body>
+      </Card>
     </Screen>
   );
 }
