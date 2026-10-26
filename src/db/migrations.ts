@@ -52,6 +52,28 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
         ('apa_baie',      'Apă rece – baie',      'apa', 'deservcom', 'm³', 20);
     `);
   },
+
+  // v2 — starea contoarelor sincronizate de la E.ON / Electrica
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE provider_status (
+        meter_id         TEXT PRIMARY KEY NOT NULL REFERENCES meters(id) ON DELETE CASCADE,
+        external_id      TEXT NOT NULL,
+        address          TEXT,
+        window_start     TEXT,
+        window_end       TEXT,
+        in_window        INTEGER NOT NULL DEFAULT 0,
+        last_index       REAL,
+        last_index_date  TEXT,
+        last_index_type  TEXT,
+        submitted_index  REAL,
+        submitted_at     TEXT,
+        submit_info      TEXT,
+        fetched_at       TEXT,
+        error            TEXT
+      );
+    `);
+  },
 ];
 
 export const DB_NAME = 'casamea.db';

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,13 +14,26 @@ import {
 
 import { radius, spacing, useTheme } from '@/lib/theme';
 
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({
+  children,
+  refreshing,
+  onRefresh,
+}: {
+  children: ReactNode;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}) {
   const t = useTheme();
   return (
     <ScrollView
       style={{ backgroundColor: t.background }}
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} colors={[t.accent]} tintColor={t.accent} />
+        ) : undefined
+      }
     >
       {children}
     </ScrollView>

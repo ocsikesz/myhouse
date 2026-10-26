@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 
@@ -6,6 +7,8 @@ import { Body, Button, Card, Field, Screen, SectionTitle, Title } from '@/compon
 import { DB_NAME, SCHEMA_VERSION } from '@/db/migrations';
 import { getSetting, setSetting } from '@/db/repo';
 import { info } from '@/lib/dialogs';
+import { useDbQuery } from '@/lib/useDbQuery';
+import { getCredentials } from '@/providers/credentials';
 import { SETTINGS } from '@/lib/settingsKeys';
 import { normalizeRoPhone } from '@/lib/whatsapp';
 
@@ -72,6 +75,27 @@ function WaterSettings() {
   );
 }
 
+function Accounts() {
+  const { data } = useDbQuery(async () => ({
+    eon: await getCredentials('eon'),
+    electrica: await getCredentials('electrica'),
+  }));
+  const rows = [
+    { id: 'eon', title: 'E.ON Myline', creds: data?.eon },
+    { id: 'electrica', title: 'MyElectrica', creds: data?.electrica },
+  ] as const;
+  return (
+    <>
+      {rows.map((r) => (
+        <Card key={r.id} onPress={() => router.push(`/cont/${r.id}`)}>
+          <Title>{r.title}</Title>
+          <Body muted>{r.creds ? `Conectat: ${r.creds.email}` : 'Neconectat · atinge ca să te conectezi'}</Body>
+        </Card>
+      ))}
+    </>
+  );
+}
+
 export default function SettingsScreen() {
   return (
     <Screen>
@@ -79,9 +103,7 @@ export default function SettingsScreen() {
       <WaterSettings />
 
       <SectionTitle>Conturi furnizori</SectionTitle>
-      <Card>
-        <Body muted>Login E.ON și Electrica — pașii 4 și 5.</Body>
-      </Card>
+      <Accounts />
 
       <SectionTitle>Despre</SectionTitle>
       <Card>

@@ -1,13 +1,43 @@
 import { router } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useState } from 'react';
 
+import { ProviderSection } from '@/components/ProviderSection';
 import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
+import { listProviderStatuses } from '@/db/repo';
+import { info } from '@/lib/dialogs';
 import { useTheme } from '@/lib/theme';
+import { useDbQuery } from '@/lib/useDbQuery';
+import { getCredentials } from '@/providers/credentials';
+import { syncAll } from '@/providers/sync';
 
 export default function UtilitiesScreen() {
   const t = useTheme();
+  const db = useSQLiteContext();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const { data, reload } = useDbQuery(async (d) => ({
+    statuses: await listProviderStatuses(d),
+    eon: !!(await getCredentials('eon')),
+    electrica: !!(await getCredentials('electrica')),
+  }));
+
+  async function onRefresh() {
+    setRefreshing(true);
+    const r = await syncAll(db);
+    setRefreshing(false);
+    const errors = Object.values(r)
+      .filter((x) => x.status === 'auth' || x.status === 'error')
+      .map((x) => ('message' in x ? x.message : ''));
+    if (errors.length) info('Unele conturi nu s-au actualizat', errors.join('\n'));
+    reload();
+  }
+
+  const statuses = data?.statuses ?? [];
+
   return (
-    <Screen>
-      <SectionTitle>Utilități</SectionTitle>
+    <Screen refreshing={refreshing} onRefresh={onRefresh}>
+      <SectionTitle>Casa</SectionTitle>
       <Card onPress={() => router.push('/apa')}>
         <Title color={t.water}>Apă rece</Title>
         <Body muted>Deservcom · bucătărie și baie · trimitere pe WhatsApp</Body>
@@ -16,14 +46,18 @@ export default function UtilitiesScreen() {
         <Title color={t.accent}>Asociația de proprietari</Title>
         <Body muted>Consumul lunar · plătit / neplătit · scadență</Body>
       </Card>
-      <Card>
-        <Title color={t.gas}>E.ON</Title>
-        <Body muted>În lucru — pasul 4</Body>
-      </Card>
-      <Card>
-        <Title color={t.electricity}>Electrica</Title>
-        <Body muted>În lucru — pasul 5</Body>
-      </Card>
+
+      {data && (
+        <>
+          <ProviderSection provider="eon" connected={data.eon} rows={statuses.filter((s) => s.provider === 'eon')} />
+          <ProviderSection
+            provider="electrica"
+            connected={data.electrica}
+            rows={statuses.filter((s) => s.provider === 'electrica')}
+          />
+        </>
+      )}
+      <Body muted>Trage în jos ca să actualizezi datele de la furnizori.</Body>
     </Screen>
   );
 }

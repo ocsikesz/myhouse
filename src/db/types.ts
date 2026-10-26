@@ -25,6 +25,28 @@ export interface Reading {
   note: string | null;
 }
 
+/** Starea unui contor de furnizor (E.ON / Electrica), din ultima sincronizare. */
+export interface ProviderStatus {
+  meter_id: string;
+  /** accountContract (E.ON) sau NLC (Electrica) */
+  external_id: string;
+  address: string | null;
+  /** Fereastra de autocitire, YYYY-MM-DD */
+  window_start: string | null;
+  window_end: string | null;
+  in_window: number;
+  last_index: number | null;
+  last_index_date: string | null;
+  last_index_type: string | null;
+  /** Index trimis în fereastra curentă (de aplicație sau găsit la furnizor) */
+  submitted_index: number | null;
+  submitted_at: string | null;
+  /** JSON cu datele necesare trimiterii (ablbelnr / serie contor + registru) */
+  submit_info: string | null;
+  fetched_at: string | null;
+  error: string | null;
+}
+
 export interface AssociationPayment {
   id: number;
   /** Luna, format YYYY-MM */

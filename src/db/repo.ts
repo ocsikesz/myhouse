@@ -1,12 +1,100 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { AssociationPayment, Meter, Reading, ReadingSource } from './types';
+import type { AssociationPayment, Meter, Provider, ProviderStatus, Reading, ReadingSource } from './types';
 
 // ---------- Contoare ----------
 
 export function listMeters(db: SQLiteDatabase): Promise<Meter[]> {
   return db.getAllAsync<Meter>(
     'SELECT * FROM meters WHERE active = 1 ORDER BY sort_order, name',
+  );
+}
+
+export async function upsertMeter(
+  db: SQLiteDatabase,
+  m: Pick<Meter, 'id' | 'name' | 'kind' | 'provider' | 'unit' | 'sort_order'>,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO meters (id, name, kind, provider, unit, sort_order, active)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name, kind = excluded.kind, unit = excluded.unit, active = 1`,
+    m.id,
+    m.name,
+    m.kind,
+    m.provider,
+    m.unit,
+    m.sort_order,
+  );
+}
+
+/** Dezactivează contoarele furnizorului care nu mai apar în cont (istoricul rămâne). */
+export async function deactivateMissingMeters(db: SQLiteDatabase, provider: Provider, keepIds: string[]): Promise<void> {
+  const placeholders = keepIds.map(() => '?').join(',') || "''";
+  await db.runAsync(
+    `UPDATE meters SET active = 0 WHERE provider = ? AND id NOT IN (${placeholders})`,
+    provider,
+    ...keepIds,
+  );
+}
+
+export async function deactivateProvider(db: SQLiteDatabase, provider: Provider): Promise<void> {
+  await db.runAsync('UPDATE meters SET active = 0 WHERE provider = ?', provider);
+}
+
+export async function getMeter(db: SQLiteDatabase, id: string): Promise<Meter | null> {
+  return db.getFirstAsync<Meter>('SELECT * FROM meters WHERE id = ?', id);
+}
+
+// ---------- Stare furnizori ----------
+
+export function getProviderStatus(db: SQLiteDatabase, meterId: string): Promise<ProviderStatus | null> {
+  return db.getFirstAsync<ProviderStatus>('SELECT * FROM provider_status WHERE meter_id = ?', meterId);
+}
+
+export function listProviderStatuses(db: SQLiteDatabase): Promise<(ProviderStatus & { name: string; kind: Meter['kind']; unit: string; provider: Provider })[]> {
+  return db.getAllAsync(
+    `SELECT ps.*, m.name, m.kind, m.unit, m.provider
+     FROM provider_status ps JOIN meters m ON m.id = ps.meter_id
+     WHERE m.active = 1 ORDER BY m.sort_order, m.name`,
+  );
+}
+
+export async function saveProviderStatus(db: SQLiteDatabase, s: ProviderStatus): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO provider_status (meter_id, external_id, address, window_start, window_end, in_window,
+       last_index, last_index_date, last_index_type, submitted_index, submitted_at, submit_info, fetched_at, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(meter_id) DO UPDATE SET
+       external_id = excluded.external_id, address = excluded.address,
+       window_start = excluded.window_start, window_end = excluded.window_end, in_window = excluded.in_window,
+       last_index = excluded.last_index, last_index_date = excluded.last_index_date,
+       last_index_type = excluded.last_index_type, submitted_index = excluded.submitted_index,
+       submitted_at = excluded.submitted_at, submit_info = excluded.submit_info,
+       fetched_at = excluded.fetched_at, error = excluded.error`,
+    s.meter_id,
+    s.external_id,
+    s.address,
+    s.window_start,
+    s.window_end,
+    s.in_window,
+    s.last_index,
+    s.last_index_date,
+    s.last_index_type,
+    s.submitted_index,
+    s.submitted_at,
+    s.submit_info,
+    s.fetched_at,
+    s.error,
+  );
+}
+
+export async function setProviderStatusError(db: SQLiteDatabase, provider: Provider, error: string | null): Promise<void> {
+  await db.runAsync(
+    `UPDATE provider_status SET error = ?
+     WHERE meter_id IN (SELECT id FROM meters WHERE provider = ?)`,
+    error,
+    provider,
   );
 }
 
