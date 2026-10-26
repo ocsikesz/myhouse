@@ -70,11 +70,13 @@ jobs:
 
       # R8 (activ implicit în SDK 58) elimină WorkDatabase_Impl din WorkManager →
       # crash la pornire în InitializationProvider. Aplicație privată: fără minificare.
+      # Doar arm64 (telefoane) + x86_64 (emulatorul de test): APK de ~2× mai mic.
       - name: Build release APK
         working-directory: android
         run: |
           ./gradlew assembleRelease --no-daemon \
             -Pandroid.enableMinifyInReleaseBuilds=false \
+            -PreactNativeArchitectures=arm64-v8a,x86_64 \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
             -Pandroid.injected.signing.store.password="$SIGN_STORE_PASS" \
             -Pandroid.injected.signing.key.alias="$SIGN_KEY_ALIAS" \
