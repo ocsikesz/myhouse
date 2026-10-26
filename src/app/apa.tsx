@@ -3,13 +3,17 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
+import { isNativeAvailable, isWhatsAppInstalled, shareToWhatsApp } from 'casamea-native';
+
+import { ScanButton } from '@/components/ScanButton';
 import { Badge, Body, Button, Card, Divider, Field, Row, Screen, SectionTitle, Title } from '@/components/ui';
 import { addReading, deleteReading, getSetting, listMeters, listReadings, markReadingSent, setSetting } from '@/db/repo';
 import type { Meter, Reading } from '@/db/types';
 import { checkNewReading, withConsumption } from '@/lib/consumption';
 import { confirm, info } from '@/lib/dialogs';
 import { currentMonth, formatDate, formatNumber, parseDecimal, todayIso } from '@/lib/format';
-import { deletePhoto, takeMeterPhoto } from '@/lib/photos';
+import { deletePhoto } from '@/lib/photos';
+import { expectationFrom } from '@/lib/scanMeter';
 import { SETTINGS } from '@/lib/settingsKeys';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
@@ -37,6 +41,8 @@ export default function WaterScreen() {
   const [saving, setSaving] = useState(false);
   /** Citirile salvate acum, gata de trimis pe WhatsApp */
   const [justSaved, setJustSaved] = useState<Reading[] | null>(null);
+  /** Crește la fiecare salvare, ca să golească rezultatul scanării */
+  const [saveCount, setSaveCount] = useState(0);
 
   const { data, reload } = useDbQuery<WaterData>(async (d) => {
     const meters = (await listMeters(d)).filter((m) => m.kind === 'apa');
@@ -52,12 +58,9 @@ export default function WaterScreen() {
 
   if (!data) return <Screen>{null}</Screen>;
 
-  async function onPhoto(meter: Meter) {
-    const uri = await takeMeterPhoto(meter.id);
-    if (uri) {
-      deletePhoto(photos[meter.id] ?? null);
-      setPhotos((p) => ({ ...p, [meter.id]: uri }));
-    }
+  function onPhoto(meter: Meter, uri: string) {
+    deletePhoto(photos[meter.id] ?? null);
+    setPhotos((p) => ({ ...p, [meter.id]: uri }));
   }
 
   async function onSave() {
@@ -123,6 +126,7 @@ export default function WaterScreen() {
       setValues({});
       setPhotos({});
       setJustSaved(saved);
+      setSaveCount((c) => c + 1);
       reload();
     } finally {
       setSaving(false);
@@ -146,7 +150,12 @@ export default function WaterScreen() {
       return { label: shortLabel(m), value: r.value, unit: m.unit };
     });
     const message = buildWaterMessage(data.identification, readings[0].read_at, lines);
-    const opened = await openWhatsApp(phone, message);
+    // Cu poze: le atașăm direct în conversație; fără poze, linkul wa.me e suficient
+    const photoUris = readings.map((r) => r.photo_uri).filter((u): u is string => !!u);
+    const opened =
+      photoUris.length > 0 && isNativeAvailable() && isWhatsAppInstalled()
+        ? shareToWhatsApp(phone, message, photoUris)
+        : await openWhatsApp(phone, message);
     if (!opened) {
       info('WhatsApp nu a putut fi deschis', 'Verifică dacă WhatsApp este instalat.');
       return;
@@ -181,7 +190,7 @@ export default function WaterScreen() {
     <>
       <Stack.Screen options={{ title: 'Apă rece' }} />
       <Screen>
-        <SectionTitle>Index nou · {formatDate(todayIso())}</SectionTitle>
+        <SectionTitle>Index nou, {formatDate(todayIso())}</SectionTitle>
         <Card>
           {data.meters.map((m, i) => {
             const last = data.history[m.id]?.[0];
@@ -196,10 +205,15 @@ export default function WaterScreen() {
                   placeholder={last ? formatNumber(last.value, 3) : '0,000'}
                   hint={last ? `Ultimul: ${formatNumber(last.value, 3)} ${m.unit} (${formatDate(last.read_at)})` : 'Prima citire'}
                 />
-                <Row>
-                  <Button title={photos[m.id] ? 'Refă poza' : 'Poză contor'} variant="secondary" onPress={() => onPhoto(m)} style={{ flex: 1 }} />
-                  {photos[m.id] ? <Image source={{ uri: photos[m.id]! }} style={styles.thumb} /> : null}
-                </Row>
+                <ScanButton
+                  key={`${m.id}-${saveCount}`}
+                  prefix={m.id}
+                  expectation={expectationFrom(data.history[m.id] ?? [], 3)}
+                  decimals={3}
+                  unit={m.unit}
+                  onPhoto={(uri) => onPhoto(m, uri)}
+                  onValue={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
+                />
               </View>
             );
           })}
@@ -212,11 +226,15 @@ export default function WaterScreen() {
             {pending.map((r) => {
               const m = data.meters.find((x) => x.id === r.meter_id);
               return m ? (
-                <Body key={r.id}>
-                  {shortLabel(m)}: {formatNumber(r.value, 3)} {m.unit}
-                </Body>
+                <Row key={r.id} style={{ justifyContent: 'space-between' }}>
+                  <Body>
+                    {shortLabel(m)}: {formatNumber(r.value, 3)} {m.unit}
+                  </Body>
+                  {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumb} /> : null}
+                </Row>
               ) : null;
             })}
+            {pending.some((r) => r.photo_uri) ? <Body muted>Pozele se trimit împreună cu mesajul.</Body> : null}
             <Button title="Trimite pe WhatsApp" variant="whatsapp" onPress={() => onSendWhatsApp(pending)} />
           </Card>
         )}
@@ -225,7 +243,7 @@ export default function WaterScreen() {
           const points = withConsumption(data.history[m.id] ?? []);
           return (
             <View key={m.id} style={{ gap: 8 }}>
-              <SectionTitle>Istoric · {shortLabel(m)}</SectionTitle>
+              <SectionTitle>Istoric {shortLabel(m).toLowerCase()}</SectionTitle>
               <Card>
                 {points.length === 0 && <Body muted>Nicio citire încă.</Body>}
                 {points.map(({ reading: r, delta }, i) => (
@@ -238,7 +256,7 @@ export default function WaterScreen() {
                         </Body>
                         <Body muted>
                           {formatDate(r.read_at)}
-                          {delta !== null ? ` · consum ${formatNumber(delta, 3)} ${m.unit}` : ''}
+                          {delta !== null ? `, consum ${formatNumber(delta, 3)} ${m.unit}` : ''}
                         </Body>
                       </View>
                       {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumbSmall} /> : null}

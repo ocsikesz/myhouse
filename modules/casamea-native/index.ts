@@ -1,0 +1,51 @@
+import { requireOptionalNativeModule } from 'expo';
+
+export interface OcrRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export interface OcrElement {
+  text: string;
+  frame: OcrRect;
+}
+
+export interface OcrLine {
+  text: string;
+  frame: OcrRect;
+  elements: OcrElement[];
+}
+
+export interface OcrResult {
+  width: number;
+  height: number;
+  lines: OcrLine[];
+}
+
+interface CasaMeaNativeModule {
+  recognizeText(uri: string): Promise<OcrResult>;
+  isWhatsAppInstalled(): boolean;
+  shareToWhatsApp(phone: string, text: string, files: string[]): boolean;
+}
+
+/** null în medii fără modulul nativ (teste, web) */
+const native = requireOptionalNativeModule<CasaMeaNativeModule>('CasaMeaNative');
+
+export function isNativeAvailable(): boolean {
+  return native !== null;
+}
+
+export async function recognizeText(uri: string): Promise<OcrResult> {
+  if (!native) throw new Error('Recunoașterea textului nu e disponibilă pe acest dispozitiv.');
+  return native.recognizeText(uri);
+}
+
+export function isWhatsAppInstalled(): boolean {
+  return native?.isWhatsAppInstalled() ?? false;
+}
+
+export function shareToWhatsApp(phone: string, text: string, files: string[]): boolean {
+  return native?.shareToWhatsApp(phone, text, files) ?? false;
+}

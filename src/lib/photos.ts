@@ -5,11 +5,12 @@ import * as ImagePicker from 'expo-image-picker';
  * Face o poză contorului și o copiază în directorul permanent al aplicației
  * (pozele din cache pot fi șterse de sistem). Returnează URI-ul sau null.
  */
-export async function takeMeterPhoto(prefix: string): Promise<string | null> {
+export async function takeMeterPhoto(prefix: string, crop = false): Promise<string | null> {
   const perm = await ImagePicker.requestCameraPermissionsAsync();
   if (!perm.granted) return null;
 
-  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6 });
+  // Cu decupare: încadrezi doar cifrele, iar recunoașterea e mult mai sigură
+  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: crop });
   if (result.canceled || !result.assets?.[0]) return null;
 
   const dir = new Directory(Paths.document, 'photos');

@@ -1,6 +1,8 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect } from 'react';
+import { recognizeText } from 'casamea-native';
+import { File, Paths } from 'expo-file-system';
+import { useEffect, useState } from 'react';
 
 import { Body, Screen } from '@/components/ui';
 import {
@@ -12,6 +14,7 @@ import {
   upsertMeter,
 } from '@/db/repo';
 import { addMonths, currentMonth, todayIso } from '@/lib/format';
+import { findMeterCandidates } from '@/lib/meterOcr';
 
 /**
  * Date de probă pentru capturile de ecran din testul automat (casamea://demo).
@@ -22,9 +25,28 @@ const DEMO_ID = 'eon:DEMO';
 export default function DemoScreen() {
   const db = useSQLiteContext();
   const { go } = useLocalSearchParams<{ go?: string }>();
+  const [status, setStatus] = useState('Se încarcă datele demo…');
 
   useEffect(() => {
     (async () => {
+      if (go === 'ocr') {
+        // Test OCR pe o poză sintetică de contor (06105,742 m³), rezultatul ajunge în logcat
+        try {
+          const { TEST_METER_JPEG_BASE64 } = await import('@/lib/testMeterImage');
+          const f = new File(Paths.cache, 'test-meter.jpg');
+          f.write(TEST_METER_JPEG_BASE64, { encoding: 'base64' });
+          const ocr = await recognizeText(f.uri);
+          const c = findMeterCandidates(ocr, { previous: 6030, typicalDelta: 60, maxDecimals: 3 });
+          const msg = `[OCR-TEST] lines=${JSON.stringify(ocr.lines.map((l) => l.text))} best=${c[0]?.value ?? 'none'} all=${JSON.stringify(c)}`;
+          console.log(msg);
+          setStatus(msg);
+        } catch (e) {
+          const msg = `[OCR-TEST] error=${e instanceof Error ? e.message : String(e)}`;
+          console.log(msg);
+          setStatus(msg);
+        }
+        return;
+      }
       const today = todayIso();
       const month = currentMonth();
       await upsertMeter(db, { id: DEMO_ID, name: 'Gaz (E.ON)', kind: 'gaz', provider: 'eon', unit: 'm³', sort_order: 100 });
@@ -73,7 +95,7 @@ export default function DemoScreen() {
 
   return (
     <Screen>
-      <Body muted>Se încarcă datele demo…</Body>
+      <Body muted>{status}</Body>
     </Screen>
   );
 }

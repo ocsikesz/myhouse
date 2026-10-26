@@ -34,5 +34,12 @@ adb shell am start -W -a android.intent.action.VIEW -d "casamea://demo?go=istori
 sleep 10
 adb exec-out screencap -p > "$OUT/screen-istoric.png" || true
 if adb shell pidof $PKG > /dev/null; then echo "ALIVE" > "$OUT/status3.txt"; else echo "DEAD" > "$OUT/status3.txt"; fi
+
+# OCR pe poza sintetică de contor
+adb logcat -c
+adb shell am start -W -a android.intent.action.VIEW -d "casamea://demo?go=ocr" $PKG > /dev/null 2>&1
+sleep 20
+adb exec-out screencap -p > "$OUT/screen-ocr.png" || true
+adb logcat -d | grep -E "OCR-TEST|AndroidRuntime|FATAL" > "$OUT/ocr.txt" || true
 adb logcat -d | grep -E "AndroidRuntime|FATAL|ReactNativeJS" > "$OUT/logcat3.txt" || true
 exit 0

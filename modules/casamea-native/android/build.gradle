@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ro.ocsikesz.casamea'
+version = '1.0.0'
+
+android {
+  namespace "ro.ocsikesz.casamea.nativekit"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // ML Kit cu modelul inclus în APK: merge offline, fără descărcare la prima folosire
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+  implementation 'androidx.core:core:1.13.1'
+}

@@ -304,6 +304,7 @@ export async function submitProviderIndex(
   db: SQLiteDatabase,
   meterId: string,
   value: number,
+  photoUri: string | null = null,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const status = await getProviderStatus(db, meterId);
   if (!status) return { ok: false, message: 'Contorul nu a fost sincronizat încă.' };
@@ -332,7 +333,14 @@ export async function submitProviderIndex(
   if (result.ok) {
     const now = new Date().toISOString();
     await saveProviderStatus(db, { ...status, submitted_index: value, submitted_at: now });
-    const id = await addReading(db, { meterId, value, readAt: todayIso(), source: 'manual', note: 'Autocitire trimisă din aplicație' });
+    const id = await addReading(db, {
+      meterId,
+      value,
+      readAt: todayIso(),
+      source: 'manual',
+      photoUri,
+      note: 'Autocitire trimisă din aplicație',
+    });
     await db.runAsync('UPDATE readings SET sent_at = ? WHERE id = ?', now, id);
   }
   return result;

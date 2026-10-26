@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { InvoiceList, PaymentList } from '@/components/InvoiceList';
 import { MeterDrum } from '@/components/MeterDrum';
+import { ScanButton } from '@/components/ScanButton';
 import { Body, Button, Card, Field, Screen, SectionTitle } from '@/components/ui';
 import { YearChart } from '@/components/YearChart';
 import {
@@ -27,6 +28,7 @@ import {
   parseDecimal,
   todayIso,
 } from '@/lib/format';
+import { expectationFrom } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
 import { buildYearComparison, invoiceState } from '@/lib/yearStats';
@@ -37,6 +39,7 @@ export default function ProviderMeterScreen() {
   const db = useSQLiteContext();
   const t = useTheme();
   const [value, setValue] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState<'sync' | 'submit' | null>(null);
   const today = todayIso();
   const from = historyStart(today);
@@ -113,10 +116,11 @@ export default function ProviderMeterScreen() {
     if (!ok) return;
 
     setBusy('submit');
-    const r = await submitProviderIndex(db, meter!.id, v);
+    const r = await submitProviderIndex(db, meter!.id, v, photo);
     setBusy(null);
     if (r.ok) {
       setValue('');
+      setPhoto(null);
       info('Index trimis', 'Furnizorul a primit indexul.');
       reload();
     } else {
@@ -151,6 +155,14 @@ export default function ProviderMeterScreen() {
 
         {inWindow && (
           <Card style={{ borderColor: submitted ? t.border : t.danger, borderWidth: 1 }}>
+            <ScanButton
+              prefix={meter.id.replace(/[^a-zA-Z0-9]/g, '_')}
+              expectation={expectationFrom(history, meter.kind === 'electricitate' ? 1 : 3, status?.last_index)}
+              decimals={0}
+              unit={meter.unit}
+              onPhoto={setPhoto}
+              onValue={setValue}
+            />
             <Field
               label={`Indexul de azi (${meter.unit})`}
               value={value}

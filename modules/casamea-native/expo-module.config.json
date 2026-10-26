@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["ro.ocsikesz.casamea.nativekit.CasaMeaNativeModule"]
+  }
+}
