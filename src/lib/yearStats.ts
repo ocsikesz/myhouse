@@ -58,3 +58,27 @@ export function invoiceState(inv: { paid: number | boolean; unpaid: number; due_
   if (inv.due_date && inv.due_date < today) return 'overdue';
   return 'due';
 }
+
+/**
+ * Totalul facturat într-un an. Dacă furnizorul trimite și facturile plătite,
+ * adunăm facturile emise în an. Altfel (avem doar neplătitele) estimăm:
+ * plățile din an + facturile neplătite emise în an.
+ */
+export function billedInYear(
+  invoices: { issue_date: string | null; due_date: string | null; amount: number; unpaid: number; paid: number | boolean }[],
+  payments: { paid_on: string; amount: number }[],
+  year: number,
+): { total: number; source: 'invoices' | 'payments' } {
+  const y = String(year);
+  const inYear = invoices.filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(y));
+  if (invoices.some((i) => i.paid)) {
+    return { total: round2(inYear.reduce((s, i) => s + i.amount, 0)), source: 'invoices' };
+  }
+  const paid = payments.filter((p) => p.paid_on.startsWith(y)).reduce((s, p) => s + p.amount, 0);
+  const open = inYear.filter((i) => !i.paid).reduce((s, i) => s + i.unpaid, 0);
+  return { total: round2(paid + open), source: 'payments' };
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}

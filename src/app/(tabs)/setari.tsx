@@ -96,6 +96,24 @@ function Accounts() {
   );
 }
 
+/** Ce a răspuns API-ul E.ON la facturi — util când ceva lipsește. */
+function Diagnostics() {
+  const { data } = useDbQuery((d) =>
+    d.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM settings WHERE key LIKE 'debug.%' ORDER BY key"),
+  );
+  if (!data || data.length === 0) return null;
+  return (
+    <Card>
+      <Title>Diagnostic furnizori</Title>
+      {data.map((r) => (
+        <Body key={r.key} muted>
+          {r.key.replace('debug.', '')}: {r.value}
+        </Body>
+      ))}
+    </Card>
+  );
+}
+
 export default function SettingsScreen() {
   return (
     <Screen>
@@ -104,6 +122,8 @@ export default function SettingsScreen() {
 
       <SectionTitle>Conturi furnizori</SectionTitle>
       <Accounts />
+
+      <Diagnostics />
 
       <SectionTitle>Despre</SectionTitle>
       <Card>

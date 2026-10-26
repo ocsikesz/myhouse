@@ -3,13 +3,20 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
 import { YearChart } from '@/components/YearChart';
-import { listAssociationPayments, listMeters, listProviderInvoices, listProviderMonthly, listReadings } from '@/db/repo';
+import {
+  listAssociationPayments,
+  listMeters,
+  listProviderInvoices,
+  listProviderMonthly,
+  listProviderPayments,
+  listReadings,
+} from '@/db/repo';
 import type { Meter } from '@/db/types';
 import { addMonths, currentMonth, formatLei, formatNumber, historyStart, todayIso } from '@/lib/format';
 import { monthlyConsumption } from '@/lib/stats';
 import { useTheme, type Theme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
-import { buildYearComparison } from '@/lib/yearStats';
+import { billedInYear, buildYearComparison } from '@/lib/yearStats';
 
 function colorFor(m: Meter, t: Theme): string {
   return m.kind === 'apa' ? t.water : m.kind === 'gaz' ? t.gas : t.electricity;
@@ -32,9 +39,8 @@ export default function HistoryScreen() {
           ? provider.map((r) => ({ month: r.month, value: r.consumption }))
           : monthlyConsumption(await listReadings(d, m.id, 120), month, 24);
         const invoices = m.provider === 'deservcom' ? [] : await listProviderInvoices(d, m.id, `${year}-01-01`);
-        const cost = invoices
-          .filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(String(year)))
-          .reduce((s, i) => s + i.amount, 0);
+        const payments = m.provider === 'deservcom' ? [] : await listProviderPayments(d, m.id, `${year}-01-01`);
+        const cost = billedInYear(invoices, payments, year).total;
         return { meter: m, comparison: buildYearComparison(rows, today), cost };
       }),
     );

@@ -394,20 +394,28 @@ export class EonClient {
   }
 
   /**
-   * Facturile contractului. Încearcă întâi lista completă (plătite + neplătite);
-   * dacă API-ul nu o oferă, revine la facturile neplătite (`complete: false`).
+   * Facturile contractului, plătite și neplătite. API-ul Myline întoarce implicit
+   * doar facturile de plată, așa că cerem separat și `status=paid` și le unim.
+   * `complete` = lista conține și facturile plătite.
    */
-  async getInvoices(accountContract: string): Promise<{ invoices: InvoiceRow[]; complete: boolean }> {
+  async getInvoices(accountContract: string): Promise<{ invoices: InvoiceRow[]; complete: boolean; debug: string }> {
     const base = `${API}/invoices/v1/invoices/list?accountContract=${encodeURIComponent(accountContract)}`;
-    const all = await this.request('GET', base);
-    if (all.status === 200 && (Array.isArray(all.data) || isRecord(all.data))) {
-      const invoices = parseEonInvoices(all.data);
-      // Lista e „completă” doar dacă apare cel puțin o factură plătită
-      if (invoices.some((i) => i.paid)) return { invoices, complete: true };
+    const variants = ['', '&status=paid', '&status=unpaid', '&status=all'];
+    const byNumber = new Map<string, InvoiceRow>();
+    let unpaidNumbers: Set<string> | null = null;
+    const debug: string[] = [];
+    for (const v of variants) {
+      const res = await this.request('GET', `${base}${v}`);
+      const rows = res.status === 200 ? parseEonInvoices(res.data) : [];
+      debug.push(`${v.replace('&status=', '') || 'implicit'}:${res.status}/${rows.length}`);
+      if (v === '&status=unpaid' && res.status === 200) unpaidNumbers = new Set(rows.map((r) => r.number));
+      for (const r of rows) if (!byNumber.has(r.number)) byNumber.set(r.number, r);
     }
-    const unpaid = await this.request('GET', `${base}&status=unpaid`);
-    if (unpaid.status !== 200) return { invoices: [], complete: false };
-    return { invoices: parseEonInvoices(unpaid.data), complete: false };
+    // Lista „unpaid”, dacă a mers, decide ce e de plată
+    const invoices = [...byNumber.values()].map((r) =>
+      unpaidNumbers === null ? r : unpaidNumbers.has(r.number) ? { ...r, paid: false } : { ...r, paid: true, unpaid: 0 },
+    );
+    return { invoices, complete: invoices.some((i) => i.paid), debug: debug.join(' ') };
   }
 
   /** Plățile până la data dată (inclusiv), cele mai noi primele; pagini limitate. */

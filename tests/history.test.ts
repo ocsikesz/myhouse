@@ -15,6 +15,7 @@ import {
   parseEonPayments,
 } from '../src/providers/eon';
 import { historyStart } from '../src/lib/format';
+import { billedInYear } from '../src/lib/yearStats';
 
 test('E.ON consum lunar și indexuri', () => {
   const c = parseEonGraphicConsumption({
@@ -46,22 +47,38 @@ test('E.ON facturi și plăți', () => {
   assert.deepEqual(pay, [{ date: '2026-10-02', amount: 180, reference: '' }]);
 });
 
-test('E.ON: listă completă vs doar neplătite', async () => {
-  const run = async (allResponse: unknown) => {
+test('E.ON: facturile plătite cerute separat și unite cu cele de plată', async () => {
+  const run = async (responses: Record<string, [number, unknown]>) => {
     const fn = async (url: string) => {
-      if (url.includes('status=unpaid')) return new Response(JSON.stringify([{ invoiceNumber: 'U', issuedValue: 50, balanceValue: 50 }]), { status: 200 });
-      if (url.includes('/invoices/list')) return new Response(JSON.stringify(allResponse), { status: 200 });
-      return new Response('{}', { status: 404 });
+      const status = new URL(url).searchParams.get('status') ?? 'implicit';
+      const [code, body] = responses[status] ?? [400, {}];
+      return new Response(JSON.stringify(body), { status: code });
     };
     const c = new EonClient({ email: 'a', password: 'b' }, { accessToken: 'T', refreshToken: null, tokenType: 'Bearer', flow: 'mobile', expiresAt: Date.now() + 3600_000 }, async () => {}, fn);
     return c.getInvoices('AC');
   };
-  const full = await run([{ invoiceNumber: 'P', issuedValue: 10, balanceValue: 0 }, { invoiceNumber: 'U', issuedValue: 50, balanceValue: 50 }]);
-  assert.equal(full.complete, true);
-  assert.equal(full.invoices.length, 2);
-  const partial = await run([{ invoiceNumber: 'U', issuedValue: 50, balanceValue: 50 }]);
-  assert.equal(partial.complete, false);
-  assert.deepEqual(partial.invoices.map((i) => i.number), ['U']);
+  // Implicit doar neplătite; status=paid aduce restul
+  const u = { invoiceNumber: 'U', issuedValue: 50, balanceValue: 50, emissionDate: '2026-10-05' };
+  const p = { invoiceNumber: 'P', issuedValue: 120, balanceValue: 120, emissionDate: '2026-09-05' };
+  const r = await run({ implicit: [200, [u]], paid: [200, [p]], unpaid: [200, [u]] });
+  assert.equal(r.complete, true);
+  assert.deepEqual(r.invoices.map((i) => [i.number, i.paid]).sort(), [['P', true], ['U', false]]);
+  assert.match(r.debug, /paid:200\/1/);
+  // Nimic plătit disponibil
+  const only = await run({ implicit: [200, [u]], unpaid: [200, [u]] });
+  assert.equal(only.complete, false);
+});
+
+test('total facturat pe an: din facturi sau din plăți', () => {
+  const inv = [
+    { issue_date: '2026-10-05', due_date: '2026-10-25', amount: 50, unpaid: 50, paid: 0 },
+    { issue_date: '2025-12-05', due_date: null, amount: 70, unpaid: 0, paid: 1 },
+    { issue_date: '2026-09-05', due_date: null, amount: 120, unpaid: 0, paid: 1 },
+  ];
+  assert.deepEqual(billedInYear(inv, [], 2026), { total: 170, source: 'invoices' });
+  const onlyUnpaid = [inv[0]];
+  const payments = [{ paid_on: '2026-09-20', amount: 120 }, { paid_on: '2025-12-20', amount: 70 }];
+  assert.deepEqual(billedInYear(onlyUnpaid, payments, 2026), { total: 170, source: 'payments' });
 });
 
 test('E.ON plăți paginate până la data de început', async () => {

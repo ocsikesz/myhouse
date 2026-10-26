@@ -31,7 +31,7 @@ import {
 import { expectationFrom } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
-import { buildYearComparison, invoiceState } from '@/lib/yearStats';
+import { billedInYear, buildYearComparison, invoiceState } from '@/lib/yearStats';
 import { submitProviderIndex, syncProvider, type AccountProvider } from '@/providers/sync';
 
 export default function ProviderMeterScreen() {
@@ -70,9 +70,7 @@ export default function ProviderMeterScreen() {
     today,
   );
   const thisYearInvoices = invoices.filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(String(year)) || !i.paid);
-  const billedThisYear = invoices
-    .filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(String(year)))
-    .reduce((s, i) => s + i.amount, 0);
+  const billed = billedInYear(invoices, payments, year);
   const unpaid = invoices.filter((i) => invoiceState(i, today) !== 'paid');
   const unpaidTotal = unpaid.reduce((s, i) => s + i.unpaid, 0);
   const overdue = unpaid.some((i) => invoiceState(i, today) === 'overdue');
@@ -191,7 +189,11 @@ export default function ProviderMeterScreen() {
             }
             noteColor={comparison.deltaPct !== null && comparison.deltaPct > 0 ? t.danger : t.success}
           />
-          <Stat label={`Facturat ${year}`} value={formatLei(billedThisYear)} />
+          <Stat
+            label={billed.source === 'invoices' ? `Facturat ${year}` : `Plătit + de plată ${year}`}
+            value={formatLei(billed.total)}
+            note={billed.source === 'payments' ? 'din plățile înregistrate' : undefined}
+          />
         </View>
 
         {unpaidTotal > 0.009 && (
