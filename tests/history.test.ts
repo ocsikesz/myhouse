@@ -79,6 +79,27 @@ test('total facturat pe an: din facturi sau din plăți', () => {
   const onlyUnpaid = [inv[0]];
   const payments = [{ paid_on: '2026-09-20', amount: 120 }, { paid_on: '2025-12-20', amount: 70 }];
   assert.deepEqual(billedInYear(onlyUnpaid, payments, 2026), { total: 170, source: 'payments' });
+  // O factură veche marcată plătită local nu trebuie să ascundă plățile din an
+  const stalePaid = [{ issue_date: '2025-11-05', due_date: null, amount: 90, unpaid: 0, paid: 1 }];
+  assert.deepEqual(billedInYear(stalePaid, payments, 2026), { total: 120, source: 'payments' });
+});
+
+test('E.ON: lista de facturi paginată', async () => {
+  const fn = async (url: string) => {
+    const u = new URL(url);
+    const status = u.searchParams.get('status');
+    const page = u.searchParams.get('page') ?? '1';
+    if (status !== 'paid') return new Response(JSON.stringify([]), { status: 200 });
+    const body =
+      page === '1'
+        ? { list: [{ invoiceNumber: 'A', issuedValue: 10, balanceValue: 0, maturityDate: '2026-02-01' }], hasNext: true }
+        : { list: [{ invoiceNumber: 'B', issuedValue: 20, balanceValue: 0, maturityDate: '2026-03-01' }], hasNext: false };
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  const c = new EonClient({ email: 'a', password: 'b' }, { accessToken: 'T', refreshToken: null, tokenType: 'Bearer', flow: 'mobile', expiresAt: Date.now() + 3600_000 }, async () => {}, fn);
+  const r = await c.getInvoices('AC');
+  assert.deepEqual(r.invoices.map((i) => i.number).sort(), ['A', 'B']);
+  assert.match(r.debug, /paid:200\/2/);
 });
 
 test('E.ON plăți paginate până la data de început', async () => {

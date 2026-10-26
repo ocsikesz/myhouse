@@ -264,12 +264,18 @@ export async function syncEon(db: SQLiteDatabase, force = false): Promise<SyncRe
           byMonth.set(r.month, { month: r.month, consumption: prev?.consumption ?? null, index: r.index, readingType: r.readingType });
         }
         const inv = await client.getInvoices(c.accountContract);
-        await setSetting(db, `debug.eon.invoices.${c.accountContract}`, `${new Date().toISOString().slice(0, 16)} ${inv.debug}`);
+        const payments = await client.getPayments(c.accountContract, from);
+        const paidThisYear = payments.filter((p) => p.date.startsWith(today.slice(0, 4))).length;
+        await setSetting(
+          db,
+          `debug.eon.invoices.${c.accountContract}`,
+          `${new Date().toISOString().slice(0, 16)} ${inv.debug} plăți:${payments.length} (în an ${paidThisYear})${c.parent ? ` DUO:${c.parent}` : ''}`,
+        );
         history = {
           monthly: [...byMonth.values()].filter((r) => r.month >= from.slice(0, 7) && r.month <= today.slice(0, 7)),
           invoices: inv.invoices,
           invoicesComplete: inv.complete,
-          payments: await client.getPayments(c.accountContract, from),
+          payments,
         };
       }
       remote.push({

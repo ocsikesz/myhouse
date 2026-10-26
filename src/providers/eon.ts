@@ -405,10 +405,19 @@ export class EonClient {
     let unpaidNumbers: Set<string> | null = null;
     const debug: string[] = [];
     for (const v of variants) {
-      const res = await this.request('GET', `${base}${v}`);
-      const rows = res.status === 200 ? parseEonInvoices(res.data) : [];
-      debug.push(`${v.replace('&status=', '') || 'implicit'}:${res.status}/${rows.length}`);
-      if (v === '&status=unpaid' && res.status === 200) unpaidNumbers = new Set(rows.map((r) => r.number));
+      // Lista poate fi paginată ({ list, hasNext }); citim câteva pagini
+      let status = 0;
+      const rows: InvoiceRow[] = [];
+      for (let page = 1; page <= 6; page++) {
+        const res = await this.request('GET', `${base}${v}${page > 1 ? `&page=${page}` : ''}`);
+        if (page === 1) status = res.status;
+        if (res.status !== 200) break;
+        const chunk = parseEonInvoices(res.data);
+        rows.push(...chunk);
+        if (!isRecord(res.data) || !res.data.hasNext || chunk.length === 0) break;
+      }
+      debug.push(`${v.replace('&status=', '') || 'implicit'}:${status}/${rows.length}`);
+      if (v === '&status=unpaid' && status === 200) unpaidNumbers = new Set(rows.map((r) => r.number));
       for (const r of rows) if (!byNumber.has(r.number)) byNumber.set(r.number, r);
     }
     // Lista „unpaid”, dacă a mers, decide ce e de plată

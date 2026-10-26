@@ -60,9 +60,12 @@ export function invoiceState(inv: { paid: number | boolean; unpaid: number; due_
 }
 
 /**
- * Totalul facturat într-un an. Dacă furnizorul trimite și facturile plătite,
- * adunăm facturile emise în an. Altfel (avem doar neplătitele) estimăm:
- * plățile din an + facturile neplătite emise în an.
+ * Totalul facturat într-un an. Două estimări:
+ *  - din facturi: suma facturilor emise în an;
+ *  - din plăți: plățile din an + ce e încă de plată din facturile anului.
+ * Lista de facturi poate fi incompletă (API-ul dă uneori doar neplătitele, iar
+ * cele marcate plătite local pot fi doar câteva), așa că o folosim doar dacă
+ * acoperă cel puțin cât plățile; altfel arătăm estimarea din plăți.
  */
 export function billedInYear(
   invoices: { issue_date: string | null; due_date: string | null; amount: number; unpaid: number; paid: number | boolean }[],
@@ -71,12 +74,14 @@ export function billedInYear(
 ): { total: number; source: 'invoices' | 'payments' } {
   const y = String(year);
   const inYear = invoices.filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(y));
-  if (invoices.some((i) => i.paid)) {
-    return { total: round2(inYear.reduce((s, i) => s + i.amount, 0)), source: 'invoices' };
-  }
+  const fromInvoices = round2(inYear.reduce((s, i) => s + i.amount, 0));
   const paid = payments.filter((p) => p.paid_on.startsWith(y)).reduce((s, p) => s + p.amount, 0);
   const open = inYear.filter((i) => !i.paid).reduce((s, i) => s + i.unpaid, 0);
-  return { total: round2(paid + open), source: 'payments' };
+  const fromPayments = round2(paid + open);
+  if (invoices.some((i) => i.paid) && fromInvoices >= fromPayments) {
+    return { total: fromInvoices, source: 'invoices' };
+  }
+  return { total: fromPayments, source: 'payments' };
 }
 
 function round2(n: number): number {
