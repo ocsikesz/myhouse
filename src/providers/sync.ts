@@ -13,6 +13,7 @@ import type { MeterKind, Provider, ProviderStatus } from '@/db/types';
 import { todayIso } from '@/lib/format';
 
 import { getCredentials, getTokens, saveTokens } from './credentials';
+import { ElectricaClient, type ElectricaTokens } from './electrica';
 import { EonClient, type EonTokens } from './eon';
 import { AuthRequiredError } from './http';
 
@@ -121,6 +122,48 @@ export async function makeEonClient(): Promise<EonClient | null> {
   return new EonClient(creds, tokens, (t) => saveTokens('eon', t));
 }
 
+export async function makeElectricaClient(): Promise<ElectricaClient | null> {
+  const creds = await getCredentials('electrica');
+  if (!creds) return null;
+  const tokens = await getTokens<ElectricaTokens>('electrica');
+  return new ElectricaClient(creds, tokens, (t) => saveTokens('electrica', t));
+}
+
+export async function syncElectrica(db: SQLiteDatabase): Promise<SyncResult> {
+  const client = await makeElectricaClient();
+  if (!client) return { status: 'not_configured' };
+  try {
+    const today = todayIso();
+    const places = await client.getPlaces();
+    const remote: RemoteMeter[] = [];
+    for (const p of places) {
+      const m = await client.getMeter(p.nlc, today);
+      remote.push({
+        provider: 'electrica',
+        externalId: p.nlc,
+        kind: p.serviceType.toLowerCase().includes('gaz') ? 'gaz' : 'electricitate',
+        address: p.address,
+        windowStart: m.windowStart,
+        windowEnd: m.windowEnd,
+        inWindow: m.inWindow,
+        lastIndex: m.lastIndex,
+        lastIndexDate: m.lastIndexDate,
+        lastIndexType: m.lastIndexType,
+        submittedIndex: m.submittedIndex,
+        submittedAt: m.submittedAt,
+        submitInfo: m.serieContor && m.registerCode ? { serieContor: m.serieContor, registerCode: m.registerCode } : null,
+      });
+    }
+    await storeRemoteMeters(db, 'electrica', remote);
+    return { status: 'ok', meters: remote.length };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    await setProviderStatusError(db, 'electrica', message);
+    if (e instanceof AuthRequiredError) return { status: 'auth', message };
+    return { status: 'error', message };
+  }
+}
+
 export async function syncEon(db: SQLiteDatabase): Promise<SyncResult> {
   const client = await makeEonClient();
   if (!client) return { status: 'not_configured' };
@@ -176,6 +219,11 @@ export async function submitProviderIndex(
       if (!client) return { ok: false, message: 'Contul E.ON nu este configurat.' };
       if (!info.ablbelnr) return { ok: false, message: 'Lipsește ID-ul contorului. Perioada de citire este deschisă?' };
       result = await client.submitIndex(status.external_id, info.ablbelnr, value);
+    } else if (provider === 'electrica') {
+      const client = await makeElectricaClient();
+      if (!client) return { ok: false, message: 'Contul Electrica nu este configurat.' };
+      if (!info.serieContor || !info.registerCode) return { ok: false, message: 'Lipsesc datele contorului (serie / registru).' };
+      result = await client.submitIndex(status.external_id, info.serieContor, info.registerCode, value);
     } else {
       return { ok: false, message: `Furnizor necunoscut: ${provider}` };
     }
@@ -193,8 +241,7 @@ export async function submitProviderIndex(
 }
 
 export function syncProvider(db: SQLiteDatabase, provider: AccountProvider): Promise<SyncResult> {
-  if (provider === 'eon') return syncEon(db);
-  return Promise.resolve({ status: 'not_configured' });
+  return provider === 'eon' ? syncEon(db) : syncElectrica(db);
 }
 
 export async function syncAll(db: SQLiteDatabase): Promise<Record<AccountProvider, SyncResult>> {

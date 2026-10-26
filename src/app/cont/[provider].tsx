@@ -6,6 +6,7 @@ import { Body, Button, Card, Field, Screen, SectionTitle, Title } from '@/compon
 import { deactivateProvider } from '@/db/repo';
 import { confirm, info } from '@/lib/dialogs';
 import { clearAccount, getCredentials, saveCredentials, saveTokens } from '@/providers/credentials';
+import { ElectricaClient } from '@/providers/electrica';
 import { EonClient, type EonMfa } from '@/providers/eon';
 import { syncProvider, type AccountProvider } from '@/providers/sync';
 
@@ -68,8 +69,11 @@ export default function AccountScreen() {
       return;
     }
 
+    const c = new ElectricaClient(creds, null, (t) => saveTokens('electrica', t));
+    const r = await c.login();
+    if (r.ok) return finish();
     setBusy(false);
-    info('În lucru', 'Integrarea Electrica vine în pasul următor.');
+    info('Login eșuat', r.message);
   }
 
   async function onMfa() {
