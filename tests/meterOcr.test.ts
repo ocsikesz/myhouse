@@ -27,7 +27,7 @@ test('normalizare cifre și litere-sosie', () => {
 
 test('interpretări cu zecimale citite ca cifre', () => {
   assert.deepEqual(
-    interpretations('00123456', 3).map((x) => x.value),
+    interpretations('00123456', 3).filter((x) => !x.trimmed).map((x) => x.value),
     [123456, 12345.6, 1234.56, 123.456],
   );
   assert.deepEqual(interpretations('123.45', 3).map((x) => x.value), [123.45]);
@@ -58,6 +58,21 @@ test('contor apă: zecimalele roșii lipite de partea întreagă', () => {
   };
   const c = findMeterCandidates(input, { previous: 120.8, typicalDelta: 2.5, maxDecimals: 3 });
   assert.equal(c[0].value, 123.456);
+});
+
+test('contor apă ABB: ultimul tambur între 0 și 1 → o cifră în plus; seria de dedesubt nu câștigă', () => {
+  const input: OcrInput = {
+    lines: [
+      line(['D', 120, 60, 20, 30], ['92', 150, 60, 40, 30], ['Qn', 300, 100, 40, 30], ['1,5', 345, 100, 50, 30], ['m3/h', 400, 100, 70, 30]),
+      line(['2263', 130, 230, 300, 90], ['1201', 440, 230, 160, 90]),
+      line(['RO', 170, 480, 60, 50], ['033/93', 240, 480, 160, 50]),
+      line(['x', 400, 650, 15, 25], ['0,0001', 420, 650, 120, 25]),
+      line(['04203881', 220, 760, 330, 75]),
+      line(['2000', 280, 850, 120, 60]),
+    ],
+  };
+  const c = findMeterCandidates(input, { previous: 2259.4, typicalDelta: 3.5, maxDecimals: 3 });
+  assert.equal(c[0].value, 2263.12);
 });
 
 test('contor curent: fără istoric, alege numărul mare de 5-6 cifre', () => {

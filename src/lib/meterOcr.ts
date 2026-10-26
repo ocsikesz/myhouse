@@ -116,7 +116,10 @@ export function extractRuns(input: OcrInput): Run[] {
 }
 
 /** Interpretările posibile ale unui șir de cifre (zecimale citite ca cifre întregi). */
-export function interpretations(raw: string, maxDecimals: number): { value: number; intDigits: number }[] {
+export function interpretations(
+  raw: string,
+  maxDecimals: number,
+): { value: number; intDigits: number; trimmed?: boolean }[] {
   const parts = raw.split('.').filter(Boolean);
   if (parts.length === 2) {
     const v = Number(`${parts[0]}.${parts[1]}`);
@@ -124,12 +127,18 @@ export function interpretations(raw: string, maxDecimals: number): { value: numb
   }
   const digits = raw.replace(/\./g, '');
   if (!/^\d+$/.test(digits)) return [];
-  const out: { value: number; intDigits: number }[] = [];
-  for (let k = 0; k <= Math.min(maxDecimals, digits.length - 1); k++) {
-    const intPart = digits.slice(0, digits.length - k);
-    const dec = digits.slice(digits.length - k);
-    out.push({ value: Number(k ? `${intPart}.${dec}` : intPart), intDigits: intPart.length });
-  }
+  const out: { value: number; intDigits: number; trimmed?: boolean }[] = [];
+  const split = (d: string, trimmed: boolean) => {
+    for (let k = 0; k <= Math.min(maxDecimals, d.length - 1); k++) {
+      const intPart = d.slice(0, d.length - k);
+      const dec = d.slice(d.length - k);
+      out.push({ value: Number(k ? `${intPart}.${dec}` : intPart), intDigits: intPart.length, ...(trimmed ? { trimmed } : {}) });
+    }
+  };
+  split(digits, false);
+  // Ultimul tambur poate fi între două cifre (ex. 0 deasupra, 1 dedesubt) și OCR-ul
+  // le citește pe amândouă → o cifră în plus la coadă. Încercăm și fără ea.
+  if (maxDecimals > 0 && digits.length >= 5) split(digits.slice(0, -1), true);
   return out;
 }
 
@@ -144,9 +153,10 @@ export function findMeterCandidates(input: OcrInput, exp: MeterExpectation, limi
   for (const run of runs) {
     const digitCount = run.raw.replace(/\./g, '').length;
     if (digitCount > 12) continue;
-    for (const { value, intDigits } of interpretations(run.raw, exp.maxDecimals)) {
+    for (const { value, intDigits, trimmed } of interpretations(run.raw, exp.maxDecimals)) {
       let score = (run.height / maxHeight) * 40;
       if (run.noisyLine) score -= 25;
+      if (trimmed) score -= 8;
       // Ani (2019, 2024) apar des pe plăcuțe
       if (/^(19|20)\d\d$/.test(run.raw)) score -= 20;
 
