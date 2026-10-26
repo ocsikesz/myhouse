@@ -7,10 +7,11 @@ import { useTheme } from '@/lib/theme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-function icon(name: IconName) {
-  return ({ color, size }: { color: ColorValue; size: number }) => (
+/** Iconiță plină când tab-ul e activ, contur când nu */
+function icon(active: IconName, inactive: IconName) {
+  return ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
     // tabBarActive/InactiveTintColor sunt string-uri din temă, deci culoarea e mereu string
-    <MaterialCommunityIcons name={name} color={color as string} size={size} />
+    <MaterialCommunityIcons name={focused ? active : inactive} color={color as string} size={size} />
   );
 }
 
@@ -22,14 +23,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: t.accent,
         tabBarInactiveTintColor: t.textMuted,
         tabBarStyle: { backgroundColor: t.surface, borderTopColor: t.border },
-        headerStyle: { backgroundColor: t.surface },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerStyle: { backgroundColor: t.background },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '800', fontSize: 22 },
         headerTintColor: t.text,
+        sceneStyle: { backgroundColor: t.background },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Acasă', tabBarIcon: icon('home-outline') }} />
-      <Tabs.Screen name="utilitati" options={{ title: 'Utilități', tabBarIcon: icon('gauge') }} />
-      <Tabs.Screen name="istoric" options={{ title: 'Istoric', tabBarIcon: icon('chart-line') }} />
-      <Tabs.Screen name="setari" options={{ title: 'Setări', tabBarIcon: icon('cog-outline') }} />
+      <Tabs.Screen name="index" options={{ title: 'CasaMea', tabBarLabel: 'Acasă', tabBarIcon: icon('home', 'home-outline') }} />
+      <Tabs.Screen name="utilitati" options={{ title: 'Utilități', tabBarIcon: icon('gauge', 'gauge-low') }} />
+      <Tabs.Screen name="istoric" options={{ title: 'Istoric', tabBarIcon: icon('chart-box', 'chart-box-outline') }} />
+      <Tabs.Screen name="setari" options={{ title: 'Setări', tabBarIcon: icon('cog', 'cog-outline') }} />
     </Tabs>
   );
 }

@@ -3,7 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 
 import { ProviderSection } from '@/components/ProviderSection';
-import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
+import { Body, Card, CardHeader, Chevron, Screen, SectionTitle } from '@/components/ui';
 import { listProviderStatuses, listUnpaidInvoices } from '@/db/repo';
 import { info } from '@/lib/dialogs';
 import { useTheme } from '@/lib/theme';
@@ -43,12 +43,22 @@ export default function UtilitiesScreen() {
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
       <SectionTitle>Casa</SectionTitle>
       <Card onPress={() => router.push('/apa')}>
-        <Title color={t.water}>Apă rece</Title>
-        <Body muted>Deservcom · bucătărie și baie · trimitere pe WhatsApp</Body>
+        <CardHeader
+          icon="water-outline"
+          color={t.water}
+          title="Apă rece"
+          subtitle="Deservcom · bucătărie și baie · trimitere pe WhatsApp"
+          right={<Chevron />}
+        />
       </Card>
       <Card onPress={() => router.push('/asociatie')}>
-        <Title color={t.accent}>Asociația de proprietari</Title>
-        <Body muted>Consumul lunar · plătit / neplătit · scadență</Body>
+        <CardHeader
+          icon="office-building-outline"
+          color={t.association}
+          title="Asociația de proprietari"
+          subtitle="Consumul lunar · plătit / neplătit · scadență"
+          right={<Chevron />}
+        />
       </Card>
 
       {data && (

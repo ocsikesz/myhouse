@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
+import { Body, Card, CardHeader, Chevron, Screen, SectionTitle } from '@/components/ui';
 import { YearChart } from '@/components/YearChart';
 import {
   listAssociationPayments,
@@ -82,16 +82,22 @@ export default function HistoryScreen() {
 
   return (
     <Screen>
-      <Card>
-        <Text style={{ color: t.textMuted, fontSize: 13 }}>Cheltuieli casă în {year}, până acum</Text>
-        <Text style={[styles.big, { color: t.text }]}>{formatLei(data.totalCost)}</Text>
-        <Body muted>Facturi E.ON și Electrica plus consumul la asociație.</Body>
-      </Card>
+      <View style={[styles.hero, { backgroundColor: t.hero }]}>
+        <Text style={{ color: t.heroMuted, fontSize: 13 }}>Cheltuieli casă în {year}, până acum</Text>
+        <Text style={[styles.big, { color: t.heroText }]}>{formatLei(data.totalCost)}</Text>
+        <Text style={{ color: t.heroMuted, fontSize: 13 }}>Facturi E.ON și Electrica plus consumul la asociație.</Text>
+      </View>
 
       {data.series.map(({ meter, comparison, cost }) => (
         <View key={meter.id} style={{ gap: 8 }}>
           <SectionTitle>{meter.name}</SectionTitle>
           <Card onPress={() => router.push(`/contor/${encodeURIComponent(meter.id)}`)}>
+            <CardHeader
+              icon={meter.kind === 'gaz' ? 'fire' : 'lightning-bolt-outline'}
+              color={colorFor(meter, t)}
+              title={meter.name}
+              right={<Chevron />}
+            />
             <YearChart points={comparison.points} year={year} color={colorFor(meter, t)} unit={meter.unit} currentMonth={cm} />
             <Body muted>
               Total {year}: {formatNumber(comparison.totalCurrent, 0)} {meter.unit}
@@ -105,7 +111,7 @@ export default function HistoryScreen() {
         <View style={{ gap: 8 }}>
           <SectionTitle>Apă rece</SectionTitle>
           <Card onPress={() => router.push('/apa')}>
-            <Title color={t.water}>Bucătărie și baie</Title>
+            <CardHeader icon="water-outline" color={t.water} title="Bucătărie și baie" right={<Chevron />} />
             <YearChart points={data.waterTotal.points} year={year} color={t.water} unit="m³" decimals={2} currentMonth={cm} />
           </Card>
         </View>
@@ -113,12 +119,14 @@ export default function HistoryScreen() {
 
       <SectionTitle>Asociația</SectionTitle>
       <Card onPress={() => router.push('/asociatie')}>
-        <YearChart points={data.assoc.points} year={year} color={t.accent} unit="lei" decimals={2} currentMonth={cm} />
+        <CardHeader icon="office-building-outline" color={t.association} title="Consum lunar" right={<Chevron />} />
+        <YearChart points={data.assoc.points} year={year} color={t.association} unit="lei" decimals={2} currentMonth={cm} />
       </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  big: { fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  big: { fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  hero: { borderRadius: 22, padding: 20, gap: 4 },
 });

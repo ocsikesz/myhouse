@@ -58,7 +58,9 @@ export default function RootLayout() {
         <NotificationRouter />
         <Stack
           screenOptions={{
-            headerStyle: { backgroundColor: t.surface },
+            headerStyle: { backgroundColor: t.background },
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: '700' },
             headerTintColor: t.text,
             contentStyle: { backgroundColor: t.background },
           }}

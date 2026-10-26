@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 
-import { Body, Button, Card, Field, Screen, SectionTitle, Title } from '@/components/ui';
+import { Body, Button, Card, CardHeader, Chevron, Field, Screen, SectionTitle, Title } from '@/components/ui';
+import { useTheme } from '@/lib/theme';
 import { DB_NAME, SCHEMA_VERSION } from '@/db/migrations';
 import { getSetting, setSetting } from '@/db/repo';
 import { info } from '@/lib/dialogs';
@@ -45,9 +46,10 @@ function WaterSettings() {
     info('Salvat', 'Setările pentru apă au fost salvate.');
   }
 
+  const t = useTheme();
   return (
     <Card>
-      <Title>Apă rece (WhatsApp)</Title>
+      <CardHeader icon="whatsapp" color={t.whatsapp} title="Apă rece (WhatsApp)" subtitle="Unde și cum pleacă indexul la apă." />
       <Field
         label="Număr WhatsApp reprezentant"
         value={phone}
@@ -70,12 +72,13 @@ function WaterSettings() {
         keyboardType="number-pad"
         hint="Din ziua asta a lunii primești reminder zilnic până dai indexul la apă."
       />
-      <Button title="Salvează" onPress={onSave} loading={saving} />
+      <Button title="Salvează" icon="content-save-outline" onPress={onSave} loading={saving} />
     </Card>
   );
 }
 
 function Accounts() {
+  const t = useTheme();
   const { data } = useDbQuery(async () => ({
     eon: await getCredentials('eon'),
     electrica: await getCredentials('electrica'),
@@ -88,8 +91,13 @@ function Accounts() {
     <>
       {rows.map((r) => (
         <Card key={r.id} onPress={() => router.push(`/cont/${r.id}`)}>
-          <Title>{r.title}</Title>
-          <Body muted>{r.creds ? `Conectat: ${r.creds.email}` : 'Neconectat · atinge ca să te conectezi'}</Body>
+          <CardHeader
+            icon={r.id === 'eon' ? 'fire' : 'lightning-bolt-outline'}
+            color={r.id === 'eon' ? t.gas : t.electricity}
+            title={r.title}
+            subtitle={r.creds ? `Conectat: ${r.creds.email}` : 'Neconectat · atinge ca să te conectezi'}
+            right={<Chevron />}
+          />
         </Card>
       ))}
     </>
@@ -115,6 +123,7 @@ function Diagnostics() {
 }
 
 export default function SettingsScreen() {
+  const t = useTheme();
   return (
     <Screen>
       <SectionTitle>Apă</SectionTitle>
@@ -127,7 +136,7 @@ export default function SettingsScreen() {
 
       <SectionTitle>Despre</SectionTitle>
       <Card>
-        <Title>CasaMea</Title>
+        <CardHeader icon="home-heart" color={t.accent} title="CasaMea" />
         <Body muted>
           Versiune {Constants.expoConfig?.version ?? '?'} (build {Constants.expoConfig?.android?.versionCode ?? '?'})
         </Body>

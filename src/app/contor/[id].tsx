@@ -181,9 +181,11 @@ export default function ProviderMeterScreen() {
               keyboardType="number-pad"
               placeholder={status?.last_index ? formatNumber(status.last_index, 0) : ''}
               hint="Doar cifrele întregi de pe contor."
+              large
             />
             <Button
               title={submitted ? 'Corectează indexul' : 'Trimite indexul'}
+              icon="send"
               onPress={onSubmit}
               loading={busy === 'submit'}
             />

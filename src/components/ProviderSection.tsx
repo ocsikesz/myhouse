@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 
 import { MeterDrum } from '@/components/MeterDrum';
-import { Badge, Body, Card, Row, SectionTitle, Title } from '@/components/ui';
+import { Badge, Body, Card, CardHeader, Chevron, SectionTitle } from '@/components/ui';
 import type { Meter, ProviderStatus } from '@/db/types';
 import { daysBetween, formatDate, formatLei, todayIso } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
@@ -31,8 +31,13 @@ export function ProviderSection({
       <>
         <SectionTitle>{TITLES[provider]}</SectionTitle>
         <Card onPress={() => router.push(`/cont/${provider}`)}>
-          <Title>Conectează contul {TITLES[provider]}</Title>
-          <Body muted>Ca să vezi fereastra de autocitire și să trimiți indexul din aplicație.</Body>
+          <CardHeader
+            icon="link-variant"
+            color={t.accent}
+            title={`Conectează contul ${TITLES[provider]}`}
+            subtitle="Ca să vezi fereastra de autocitire și să trimiți indexul din aplicație."
+            right={<Chevron />}
+          />
         </Card>
       </>
     );
@@ -51,20 +56,26 @@ export function ProviderSection({
         const daysLeft = r.window_end ? daysBetween(today, r.window_end) : null;
         return (
           <Card key={r.meter_id} onPress={() => router.push(`/contor/${encodeURIComponent(r.meter_id)}`)}>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Title color={r.kind === 'gaz' ? t.gas : t.electricity}>{r.name}</Title>
-              {submitted ? (
-                <Badge text="trimis" color={t.success} />
-              ) : r.in_window ? (
-                <Badge text={daysLeft !== null && daysLeft <= 0 ? 'ultima zi' : 'de trimis'} color={t.danger} />
-              ) : null}
-            </Row>
+            <CardHeader
+              icon={r.kind === 'gaz' ? 'fire' : 'lightning-bolt-outline'}
+              color={r.kind === 'gaz' ? t.gas : t.electricity}
+              title={r.name}
+              subtitle={
+                r.window_start
+                  ? `Autocitire ${formatDate(r.window_start)} – ${r.window_end ? formatDate(r.window_end) : '?'}`
+                  : 'Perioada de autocitire nu e anunțată încă'
+              }
+              right={
+                submitted ? (
+                  <Badge text="trimis" color={t.success} />
+                ) : r.in_window ? (
+                  <Badge text={daysLeft !== null && daysLeft <= 0 ? 'ultima zi' : 'de trimis'} color={t.danger} />
+                ) : (
+                  <Chevron />
+                )
+              }
+            />
             <MeterDrum value={r.last_index} unit={r.unit} size="small" />
-            <Body muted>
-              {r.window_start
-                ? `Autocitire ${formatDate(r.window_start)} – ${r.window_end ? formatDate(r.window_end) : '?'}`
-                : 'Perioada de autocitire nu e anunțată încă'}
-            </Body>
             {unpaid[r.meter_id] ? <Body color={t.warning}>De plată: {formatLei(unpaid[r.meter_id])}</Body> : null}
             {r.error ? <Body color={t.danger}>{r.error}</Body> : null}
           </Card>
