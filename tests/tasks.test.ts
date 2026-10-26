@@ -48,3 +48,15 @@ test('consum lunar din index', () => {
     { month: '2026-10', value: 5 },
   ]);
 });
+
+test('facturi neplătite: nouă → o dată, aproape de scadență → zilnic', () => {
+  const inv = { meterId: 'eon:1', name: 'Gaz (E.ON)', number: 'F1', unpaid: 234.5, dueDate: '2026-11-15' };
+  const far = computeTasks({ ...base, invoices: [inv] }).find((t) => t.key.startsWith('invoice.'))!;
+  assert.equal(far.notify, 'once');
+  assert.equal(far.key, 'invoice.eon:1.F1');
+  const near = computeTasks({ ...base, today: '2026-11-13', invoices: [inv] }).find((t) => t.key.startsWith('invoice.'))!;
+  assert.equal(near.notify, 'daily');
+  assert.equal(near.urgency, 'urgent');
+  const late = computeTasks({ ...base, today: '2026-11-20', invoices: [inv] }).find((t) => t.key.startsWith('invoice.'))!;
+  assert.match(late.title, /restantă/);
+});

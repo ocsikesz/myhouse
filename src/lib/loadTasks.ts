@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { getSetting, listAssociationPayments, listMeters, listProviderStatuses } from '@/db/repo';
+import { getSetting, listAssociationPayments, listMeters, listProviderStatuses, listUnpaidInvoices } from '@/db/repo';
 
 import { currentMonth, todayIso } from './format';
 import { SETTINGS } from './settingsKeys';
@@ -44,6 +44,13 @@ export async function loadTasks(db: SQLiteDatabase): Promise<HomeTask[]> {
       sentThisMonth: (await getSetting(db, SETTINGS.waterSentMonth)) === month,
       hasMeters: meters.some((m) => m.kind === 'apa'),
     },
+    invoices: (await listUnpaidInvoices(db)).map((i) => ({
+      meterId: i.meter_id,
+      name: i.name,
+      number: i.invoice_number,
+      unpaid: i.unpaid,
+      dueDate: i.due_date,
+    })),
     association: thisMonthPayment
       ? {
           month: thisMonthPayment.month,

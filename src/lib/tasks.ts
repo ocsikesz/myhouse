@@ -23,6 +23,8 @@ export interface TaskInput {
   authErrors: { provider: 'eon' | 'electrica'; message: string }[];
   water: { reminderDay: number; sentThisMonth: boolean; hasMeters: boolean };
   association: { month: string; amount: number; dueDate: string | null; paid: boolean } | null;
+  /** Facturi E.ON / Electrica neplătite */
+  invoices?: { meterId: string; name: string; number: string; unpaid: number; dueDate: string | null }[];
 }
 
 export type Urgency = 'urgent' | 'normal';
@@ -84,6 +86,28 @@ export function computeTasks(input: TaskInput): HomeTask[] {
         notify: 'daily',
       });
     }
+  }
+
+  for (const inv of input.invoices ?? []) {
+    const daysLeft = inv.dueDate ? daysBetween(today, inv.dueDate) : null;
+    const overdue = daysLeft !== null && daysLeft < 0;
+    const near = daysLeft !== null && daysLeft <= 3;
+    tasks.push({
+      // Factură nouă: o notificare; aproape de scadență sau restantă: zilnic
+      key: `invoice.${inv.meterId}.${inv.number}${near ? '.due' : ''}`,
+      title: `${overdue ? 'Factură restantă' : 'Factură de plată'}: ${inv.name}, ${formatLei(inv.unpaid)}`,
+      body:
+        daysLeft === null
+          ? 'Fără dată de scadență.'
+          : overdue
+            ? `Scadența a fost pe ${formatDate(inv.dueDate!)}.`
+            : daysLeft === 0
+              ? 'Scadența e azi.'
+              : `Scadentă pe ${formatDate(inv.dueDate!)} (în ${daysLeft} ${daysLeft === 1 ? 'zi' : 'zile'}).`,
+      url: `/contor/${encodeURIComponent(inv.meterId)}`,
+      urgency: near ? 'urgent' : 'normal',
+      notify: near ? 'daily' : 'once',
+    });
   }
 
   const a = input.association;

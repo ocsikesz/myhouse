@@ -18,4 +18,21 @@ adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
 sleep 20
 if adb shell pidof $PKG > /dev/null; then echo "ALIVE" > "$OUT/status2.txt"; else echo "DEAD" > "$OUT/status2.txt"; fi
 adb logcat -d | grep -E "AndroidRuntime|FATAL|ReactNativeJS|$PKG" > "$OUT/logcat2.txt" || true
+# Capturi cu date demo: ecranul contorului și Istoric
+adb shell am start -W -a android.intent.action.VIEW -d "casamea://demo" $PKG > /dev/null 2>&1
+sleep 12
+adb exec-out screencap -p > "$OUT/screen-contor.png" || true
+SIZE=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); W=${SIZE%x*}; H=${SIZE#*x}
+X=$((W / 2)); Y1=$((H * 8 / 10)); Y2=$((H * 2 / 10))
+adb shell input swipe $X $Y1 $X $Y2 400
+sleep 2
+adb exec-out screencap -p > "$OUT/screen-contor-2.png" || true
+adb shell input swipe $X $Y1 $X $Y2 400
+sleep 2
+adb exec-out screencap -p > "$OUT/screen-contor-3.png" || true
+adb shell am start -W -a android.intent.action.VIEW -d "casamea://demo?go=istoric" $PKG > /dev/null 2>&1
+sleep 10
+adb exec-out screencap -p > "$OUT/screen-istoric.png" || true
+if adb shell pidof $PKG > /dev/null; then echo "ALIVE" > "$OUT/status3.txt"; else echo "DEAD" > "$OUT/status3.txt"; fi
+adb logcat -d | grep -E "AndroidRuntime|FATAL|ReactNativeJS" > "$OUT/logcat3.txt" || true
 exit 0

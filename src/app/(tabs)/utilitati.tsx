@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { ProviderSection } from '@/components/ProviderSection';
 import { Body, Card, Screen, SectionTitle, Title } from '@/components/ui';
-import { listProviderStatuses } from '@/db/repo';
+import { listProviderStatuses, listUnpaidInvoices } from '@/db/repo';
 import { info } from '@/lib/dialogs';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
@@ -18,6 +18,10 @@ export default function UtilitiesScreen() {
 
   const { data, reload } = useDbQuery(async (d) => ({
     statuses: await listProviderStatuses(d),
+    unpaid: (await listUnpaidInvoices(d)).reduce<Record<string, number>>((acc, i) => {
+      acc[i.meter_id] = (acc[i.meter_id] ?? 0) + i.unpaid;
+      return acc;
+    }, {}),
     eon: !!(await getCredentials('eon')),
     electrica: !!(await getCredentials('electrica')),
   }));
@@ -49,11 +53,17 @@ export default function UtilitiesScreen() {
 
       {data && (
         <>
-          <ProviderSection provider="eon" connected={data.eon} rows={statuses.filter((s) => s.provider === 'eon')} />
+          <ProviderSection
+            provider="eon"
+            connected={data.eon}
+            rows={statuses.filter((s) => s.provider === 'eon')}
+            unpaid={data.unpaid}
+          />
           <ProviderSection
             provider="electrica"
             connected={data.electrica}
             rows={statuses.filter((s) => s.provider === 'electrica')}
+            unpaid={data.unpaid}
           />
         </>
       )}
