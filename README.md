@@ -38,3 +38,11 @@ npx expo run:android      # development build (expo-sqlite are cod nativ, nu mer
 
 - Schema bazei de date: `src/db/migrations.ts`. Nu modifica o migrație deja livrată — adaugă una nouă.
 - `react-dom` e fixat la aceeași versiune ca `react` (19.3.0) ca să nu apară conflict de peer dependency la `npx expo install`.
+
+## APK automat (GitHub Actions)
+
+La fiecare push pe `main`, workflow-ul `.github/workflows/android-apk.yml` construiește un APK semnat și îl publică în **Releases** (`CasaMea-<build>.apk`). Numărul rulării devine `versionCode`, deci fiecare APK nou se instalează peste cel vechi.
+
+Secrete necesare în repo (Settings → Secrets and variables → Actions):
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Keystore-ul trebuie păstrat — fără el nu mai poți instala update-uri peste aplicația existentă.
