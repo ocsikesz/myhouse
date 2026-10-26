@@ -7,7 +7,7 @@ import { Badge, Body, Button, Card, Divider, Field, Row, Screen, SectionTitle, T
 import { getMeter, getProviderStatus, listReadings } from '@/db/repo';
 import { checkNewReading } from '@/lib/consumption';
 import { confirm, info } from '@/lib/dialogs';
-import { daysBetween, formatDate, formatNumber, parseDecimal, todayIso } from '@/lib/format';
+import { daysBetween, formatDate, formatDateTime, formatNumber, parseDecimal, todayIso } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
 import { submitProviderIndex, syncProvider, type AccountProvider } from '@/providers/sync';
@@ -125,12 +125,12 @@ export default function ProviderMeterScreen() {
           {submitted ? (
             <Body color={t.success}>
               Trimis: {formatNumber(status!.submitted_index!, 0)} {meter.unit}
-              {status?.submitted_at ? ` · ${formatDate(status.submitted_at)}` : ''}
+              {status?.submitted_at ? ` · ${formatDate(status.submitted_at.slice(0, 10))}` : ''}
             </Body>
           ) : null}
           {status?.error ? <Body color={t.danger}>{status.error}</Body> : null}
           <Body muted>
-            Actualizat: {status?.fetched_at ? `${formatDate(status.fetched_at)} ${status.fetched_at.slice(11, 16)} UTC` : 'niciodată'}
+            Actualizat: {status?.fetched_at ? formatDateTime(status.fetched_at) : 'niciodată'}
           </Body>
           <Button title="Actualizează acum" variant="secondary" onPress={onSync} loading={busy === 'sync'} />
         </Card>

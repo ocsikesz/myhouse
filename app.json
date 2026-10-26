@@ -17,7 +17,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "ro.ocsikesz.casamea"
+      "package": "ro.ocsikesz.casamea",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,7 +38,15 @@
           "photosPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2F6F5E"
+        }
+      ],
+      "expo-background-task",
+      "expo-secure-store"
     ],
     "scheme": "casamea",
     "experiments": {

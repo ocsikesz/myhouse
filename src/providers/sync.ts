@@ -7,6 +7,7 @@ import {
   latestReading,
   saveProviderStatus,
   setProviderStatusError,
+  setSetting,
   upsertMeter,
 } from '@/db/repo';
 import type { MeterKind, Provider, ProviderStatus } from '@/db/types';
@@ -244,6 +245,10 @@ export function syncProvider(db: SQLiteDatabase, provider: AccountProvider): Pro
   return provider === 'eon' ? syncEon(db) : syncElectrica(db);
 }
 
+export const LAST_SYNC = 'sync.last_run';
+
 export async function syncAll(db: SQLiteDatabase): Promise<Record<AccountProvider, SyncResult>> {
-  return { eon: await syncProvider(db, 'eon'), electrica: await syncProvider(db, 'electrica') };
+  const result = { eon: await syncProvider(db, 'eon'), electrica: await syncProvider(db, 'electrica') };
+  await setSetting(db, LAST_SYNC, new Date().toISOString());
+  return result;
 }
