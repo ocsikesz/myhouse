@@ -198,7 +198,7 @@ export function Divider() {
 const styles = StyleSheet.create({
   screen: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.lg * 2 },
   card: { borderRadius: radius, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, gap: spacing.sm },
-  section: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: spacing.sm },
+  section: { fontSize: 15, fontWeight: '700', marginTop: spacing.sm },
   body: { fontSize: 15, lineHeight: 21 },
   title: { fontSize: 17, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
