@@ -106,3 +106,17 @@ test('contor curent: fără istoric, alege numărul mare de 5-6 cifre', () => {
 test('fără cifre → fără candidați', () => {
   assert.deepEqual(findMeterCandidates({ lines: [line(['Elster', 0, 0, 10, 10])] }, { previous: null, typicalDelta: null, maxDecimals: 0 }), []);
 });
+
+test('apă: zerourile din față nu depunctează indexul (00123 + tamburi roșii)', () => {
+  const input: OcrInput = {
+    lines: [
+      line(['00123', 100, 200, 200, 60], ['457', 320, 205, 110, 50]),
+      line(['Qn', 50, 400, 40, 20], ['1,5', 95, 400, 40, 20]),
+      line(['2019', 300, 450, 80, 20]),
+      // Un număr mai mic de pe plăcuță, plauzibil ca valoare
+      line(['125', 50, 600, 90, 30]),
+    ],
+  };
+  const c = findMeterCandidates(input, { previous: 121, typicalDelta: 2, maxDecimals: 3 });
+  assert.equal(Math.trunc(c[0].value), 123);
+});

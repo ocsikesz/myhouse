@@ -194,8 +194,10 @@ export function findMeterCandidates(input: OcrInput, exp: MeterExpectation, limi
           else if (delta <= typical * 15) score += 30;
           else score -= 30;
         }
-        if (intDigits === intDigitsOf(exp.previous)) score += 10;
-        else if (intDigits > intDigitsOf(exp.previous) + 1) score -= 15;
+        // Zerourile din față (tamburi 00123) nu contează la comparația cu indexul anterior
+        const sig = intDigitsOf(value);
+        if (sig === intDigitsOf(exp.previous)) score += 10;
+        else if (sig > intDigitsOf(exp.previous) + 1) score -= 15;
       } else {
         if (intDigits >= 4 && intDigits <= 6) score += 15;
         else if (intDigits > 8) score -= 20;

@@ -4,7 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MeterCamera } from '@/components/MeterCamera';
 import { Button } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
-import type { MeterExpectation, Rect } from '@/lib/meterOcr';
+import type { Candidate, MeterExpectation, Rect } from '@/lib/meterOcr';
 import { readMeterPhoto, type ScanResult } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 
@@ -41,6 +41,8 @@ export function ScanButton({
     setBusy(true);
     try {
       const r = await readMeterPhoto(photo.uri, expectation, photo.region);
+      // Fără zecimale: variantele care diferă doar prin tamburii roșii sunt același index
+      if (decimals === 0) r.candidates = mergeWhole(r.candidates);
       setResult(r);
       onPhoto(r.photoUri);
       if (r.candidates[0]) {
@@ -104,6 +106,17 @@ export function ScanButton({
       ) : null}
     </View>
   );
+}
+
+/** Păstrează câte o variantă pentru fiecare valoare întreagă (cea mai sigură). */
+function mergeWhole(candidates: Candidate[]): Candidate[] {
+  const best = new Map<number, Candidate>();
+  for (const c of candidates) {
+    const v = Math.trunc(c.value);
+    const prev = best.get(v);
+    if (!prev || prev.score < c.score) best.set(v, { ...c, value: v });
+  }
+  return [...best.values()].sort((a, b) => b.score - a.score);
 }
 
 const styles = StyleSheet.create({

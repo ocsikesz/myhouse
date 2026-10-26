@@ -18,7 +18,7 @@ import { SETTINGS } from '@/lib/settingsKeys';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
 import { openWhatsApp } from '@/lib/openWhatsApp';
-import { buildWaterMessage, normalizeRoPhone } from '@/lib/whatsapp';
+import { buildWaterMessage, normalizeRoPhone, wholeIndex } from '@/lib/whatsapp';
 
 interface WaterData {
   meters: Meter[];
@@ -47,7 +47,10 @@ export default function WaterScreen() {
   const { data, reload } = useDbQuery<WaterData>(async (d) => {
     const meters = (await listMeters(d)).filter((m) => m.kind === 'apa');
     const history: Record<string, Reading[]> = {};
-    for (const m of meters) history[m.id] = await listReadings(d, m.id, 12);
+    // La apă lucrăm doar cu m³ întregi: cele 3 zecimale (tamburii roșii) nu contează
+    for (const m of meters) {
+      history[m.id] = (await listReadings(d, m.id, 12)).map((r) => ({ ...r, value: Math.trunc(r.value) }));
+    }
     return {
       meters,
       history,
@@ -76,23 +79,23 @@ export default function WaterScreen() {
         info('Index invalid', `„${raw}” nu este un număr valid pentru ${shortLabel(m)}.`);
         return;
       }
-      const check = checkNewReading(value, data.history[m.id] ?? []);
+      const check = checkNewReading(Math.trunc(value), data.history[m.id] ?? []);
       if (!check.ok && check.reason === 'mai_mic') {
         info(
           'Index mai mic decât precedentul',
-          `${shortLabel(m)}: ${formatNumber(value, 3)} < ${formatNumber(check.previous, 3)} ${m.unit}. Verifică cifrele.`,
+          `${shortLabel(m)}: ${wholeIndex(value)} < ${wholeIndex(check.previous)} ${m.unit}. Verifică cifrele.`,
         );
         return;
       }
       if (!check.ok && check.reason === 'salt_mare') {
         const ok = await confirm(
           'Consum neobișnuit de mare',
-          `${shortLabel(m)}: +${formatNumber(check.delta, 3)} ${m.unit}, față de o medie de ${formatNumber(check.typical, 3)} ${m.unit}. Salvezi totuși?`,
+          `${shortLabel(m)}: +${wholeIndex(check.delta)} ${m.unit}, față de o medie de ${formatNumber(check.typical, 1)} ${m.unit}. Salvezi totuși?`,
           'Salvează',
         );
         if (!ok) return;
       }
-      toSave.push({ meter: m, value });
+      toSave.push({ meter: m, value: Math.trunc(value) });
     }
 
     if (toSave.length === 0) {
@@ -147,7 +150,11 @@ export default function WaterScreen() {
     }
     const lines = readings.map((r) => {
       const m = data.meters.find((x) => x.id === r.meter_id)!;
-      return { label: shortLabel(m), value: r.value, unit: m.unit };
+      // Citirea dinainte (luna trecută), din istoricul aceluiași contor
+      const hist = data.history[m.id] ?? [];
+      const idx = hist.findIndex((x) => x.id === r.id);
+      const before = idx >= 0 ? hist[idx + 1] : hist.find((x) => x.read_at < r.read_at);
+      return { label: shortLabel(m), value: r.value, previous: before ? before.value : null, unit: m.unit };
     });
     const message = buildWaterMessage(data.identification, readings[0].read_at, lines);
     // Cu poze: le atașăm direct în conversație; fără poze, linkul wa.me e suficient
@@ -170,7 +177,7 @@ export default function WaterScreen() {
   async function onDelete(r: Reading, m: Meter) {
     const ok = await confirm(
       'Ștergi citirea?',
-      `${shortLabel(m)}: ${formatNumber(r.value, 3)} ${m.unit} din ${formatDate(r.read_at)}`,
+      `${shortLabel(m)}: ${wholeIndex(r.value)} ${m.unit} din ${formatDate(r.read_at)}`,
       'Șterge',
     );
     if (!ok) return;
@@ -201,15 +208,15 @@ export default function WaterScreen() {
                   label={shortLabel(m)}
                   value={values[m.id] ?? ''}
                   onChangeText={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
-                  keyboardType="decimal-pad"
-                  placeholder={last ? formatNumber(last.value, 3) : '0,000'}
-                  hint={last ? `Ultimul: ${formatNumber(last.value, 3)} ${m.unit} (${formatDate(last.read_at)})` : 'Prima citire'}
+                  keyboardType="number-pad"
+                  placeholder={last ? wholeIndex(last.value) : '0'}
+                  hint={last ? `Ultimul: ${wholeIndex(last.value)} ${m.unit} (${formatDate(last.read_at)})` : 'Prima citire'}
                 />
                 <ScanButton
                   key={`${m.id}-${saveCount}`}
                   prefix={m.id}
                   expectation={expectationFrom(data.history[m.id] ?? [], 3)}
-                  decimals={3}
+                  decimals={0}
                   unit={m.unit}
                   onPhoto={(uri) => onPhoto(m, uri)}
                   onValue={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
@@ -228,7 +235,7 @@ export default function WaterScreen() {
               return m ? (
                 <Row key={r.id} style={{ justifyContent: 'space-between' }}>
                   <Body>
-                    {shortLabel(m)}: {formatNumber(r.value, 3)} {m.unit}
+                    {shortLabel(m)}: {wholeIndex(r.value)} {m.unit}
                   </Body>
                   {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumb} /> : null}
                 </Row>
@@ -252,11 +259,11 @@ export default function WaterScreen() {
                     <Row style={{ justifyContent: 'space-between' }}>
                       <View style={{ flex: 1, gap: 2 }}>
                         <Body>
-                          {formatNumber(r.value, 3)} {m.unit}
+                          {wholeIndex(r.value)} {m.unit}
                         </Body>
                         <Body muted>
                           {formatDate(r.read_at)}
-                          {delta !== null ? `, consum ${formatNumber(delta, 3)} ${m.unit}` : ''}
+                          {delta !== null ? `, consum ${wholeIndex(delta)} ${m.unit}` : ''}
                         </Body>
                       </View>
                       {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumbSmall} /> : null}

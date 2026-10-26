@@ -31,10 +31,20 @@ test('telefon și mesaj WhatsApp', () => {
   assert.equal(normalizeRoPhone('0040744123456'), '40744123456');
   assert.equal(normalizeRoPhone('12'), null);
   const msg = buildWaterMessage('Str. X 10, ap. 5', '2026-10-26', [
-    { label: 'Bucătărie', value: 123.4, unit: 'm³' },
-    { label: 'Baie', value: 98.765, unit: 'm³' },
+    { label: 'Bucătărie', value: 123.4, previous: 119.987, unit: 'm³' },
+    { label: 'Baie', value: 1098.765, previous: 1095.2, unit: 'm³' },
   ]);
-  assert.equal(msg, 'Bună ziua! Indexuri apă rece – Str. X 10, ap. 5, 26.10.2026:\nBucătărie: 123,400 m³\nBaie: 98,765 m³');
+  assert.equal(
+    msg,
+    'Bună ziua! Indexuri apă rece – Str. X 10, ap. 5, 26.10.2026:\nBucătărie: 123 m³\nBaie: 1098 m³\n\n' +
+      'Total luna aceasta: 1221 m³\nTotal luna trecută: 1214 m³\nConsum: 7 m³',
+  );
+  // Prima citire: fără luna trecută și fără consum
+  const first = buildWaterMessage('', '2026-10-26', [
+    { label: 'Bucătărie', value: 12.9, previous: null, unit: 'm³' },
+    { label: 'Baie', value: 8.1, previous: 7, unit: 'm³' },
+  ]);
+  assert.equal(first, 'Bună ziua! Indexuri apă rece, 26.10.2026:\nBucătărie: 12 m³\nBaie: 8 m³\n\nTotal luna aceasta: 20 m³');
 });
 
 import { addMonths, daysBetween, parseRoDate } from '../src/lib/format';
