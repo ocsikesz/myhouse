@@ -39,7 +39,7 @@ export default function ProviderMeterScreen() {
 
   async function onSync() {
     setBusy('sync');
-    const r = await syncProvider(db, provider);
+    const r = await syncProvider(db, provider, true);
     setBusy(null);
     if (r.status === 'auth') {
       const go = await confirm('Reconectare necesară', r.message, 'Reconectează');

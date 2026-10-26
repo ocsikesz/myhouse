@@ -28,6 +28,7 @@ export interface ElectricaTokens {
 export interface ElectricaPlace {
   nlc: string;
   clientCode: string;
+  contractAccount: string;
   serviceType: string;
   address: string;
 }
@@ -77,6 +78,7 @@ export function parseElectricaHierarchy(raw: unknown): ElectricaPlace[] {
     const contracts = Array.isArray(client.to_ContContract) ? client.to_ContContract : [];
     for (const contract of contracts) {
       if (!isRecord(contract)) continue;
+      const contractAccount = str(contract.ContractAccount);
       const locs = Array.isArray(contract.to_LocConsum) ? contract.to_LocConsum : [];
       for (const loc of locs) {
         if (!isRecord(loc)) continue;
@@ -93,7 +95,7 @@ export function parseElectricaHierarchy(raw: unknown): ElectricaPlace[] {
         if (str(loc.RoomNumber)) parts.push(`ap. ${str(loc.RoomNumber)}`);
         const city = titleCase(str(loc.City));
         if (city) parts.push(city);
-        places.push({ nlc, clientCode, serviceType: str(loc.ServiceType), address: parts.join(', ') });
+        places.push({ nlc, clientCode, contractAccount, serviceType: str(loc.ServiceType), address: parts.join(', ') });
       }
     }
   }
@@ -146,6 +148,63 @@ export function parseElectricaMeterList(raw: unknown, today: string): ElectricaM
     submittedIndex: submittedThisWindow ? pacIndex : null,
     submittedAt: submittedThisWindow ? pacDate : null,
   };
+}
+
+export interface ElectricaInvoice {
+  number: string;
+  issueDate: string | null;
+  dueDate: string | null;
+  amount: number;
+  unpaid: number;
+  paid: boolean;
+}
+
+/** client-code-invoices → facturile unui cont contract (toate, cu stare). */
+export function parseElectricaInvoices(raw: unknown, contractAccount: string): ElectricaInvoice[] {
+  const list = bodyResponse(raw);
+  const rows: ElectricaInvoice[] = [];
+  for (const f of Array.isArray(list) ? list : []) {
+    if (!isRecord(f)) continue;
+    if (contractAccount && str(f.ContractAccount) && str(f.ContractAccount) !== contractAccount) continue;
+    const amount = num(f.TotalAmount);
+    if (amount === null) continue;
+    const unpaid = Math.max(0, num(f.UnpaidValue) ?? 0);
+    const status = str(f.InvoiceStatus).toLowerCase();
+    const unpaidStatus = status.startsWith('neachitat') || status.startsWith('neplătit') || status.startsWith('neplatit');
+    rows.push({
+      number: str(f.FiscalNumber) || str(f.InvoiceID) || `${str(f.IssueDate)}-${amount}`,
+      issueDate: isoDay(f.IssueDate),
+      dueDate: isoDay(f.DueDate),
+      amount,
+      unpaid,
+      paid: !(unpaidStatus && unpaid > 0.009) && unpaid <= 0.009,
+    });
+  }
+  return rows;
+}
+
+export interface ElectricaReading {
+  date: string;
+  index: number;
+  type: string | null;
+}
+
+/** readings → citirile registrului de consum, sortate crescător. */
+export function parseElectricaReadings(raw: unknown): ElectricaReading[] {
+  const list = bodyResponse(raw);
+  const rows: ElectricaReading[] = [];
+  for (const r of Array.isArray(list) ? list : []) {
+    if (!isRecord(r)) continue;
+    const code = str(r.RegisterCode);
+    if (code && code !== REGISTER_CONSUMPTION && code.startsWith('2.8')) continue;
+    const date = isoDay(r.ReadingDate);
+    const index = num(r.Index);
+    if (!date || index === null) continue;
+    const t = str(r.MeterReadingType).toLowerCase();
+    const type = t.includes('client') ? 'autocitit' : t.includes('comp') ? 'citit distribuitor' : t || null;
+    rows.push({ date, index, type });
+  }
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Mesajul de eroare din răspunsul set-index, sau null dacă indexul a fost acceptat. */
@@ -220,6 +279,19 @@ export class ElectricaClient {
     return parseElectricaMeterList(res.data, today);
   }
 
+  async getInvoices(clientCode: string, contractAccount: string, fromDate: string, toDate: string): Promise<ElectricaInvoice[]> {
+    const res = await this.request(
+      'GET',
+      `${API}/client-code-invoices/${encodeURIComponent(clientCode)}/${fromDate}/${toDate}/false`,
+    );
+    return res.status >= 200 && res.status < 300 ? parseElectricaInvoices(res.data, contractAccount) : [];
+  }
+
+  async getReadings(clientCode: string, nlc: string): Promise<ElectricaReading[]> {
+    const res = await this.request('GET', `${API}/readings/${encodeURIComponent(clientCode)}/${encodeURIComponent(nlc)}`);
+    return res.status >= 200 && res.status < 300 ? parseElectricaReadings(res.data) : [];
+  }
+
   async submitIndex(
     nlc: string,
     serieContor: string,
@@ -234,4 +306,25 @@ export class ElectricaClient {
     if (res.status >= 200 && res.status < 300 && !err) return { ok: true };
     return { ok: false, message: err ?? `Electrica a respins indexul (HTTP ${res.status})` };
   }
+}
+
+/**
+ * Din citiri cumulative → rânduri lunare: consumul dintre citiri consecutive
+ * merge în luna citirii mai noi; indexul lunii e ultima citire din lună.
+ */
+export function electricaReadingsToMonthly(
+  readings: ElectricaReading[],
+): { month: string; consumption: number | null; index: number; readingType: string | null }[] {
+  const byMonth = new Map<string, { month: string; consumption: number | null; index: number; readingType: string | null }>();
+  for (let i = 0; i < readings.length; i++) {
+    const r = readings[i];
+    const month = r.date.slice(0, 7);
+    const prev = readings[i - 1];
+    const delta = prev && r.index >= prev.index ? r.index - prev.index : null;
+    const existing = byMonth.get(month);
+    const consumption =
+      delta === null ? existing?.consumption ?? null : (existing?.consumption ?? 0) + delta;
+    byMonth.set(month, { month, consumption, index: r.index, readingType: r.type });
+  }
+  return [...byMonth.values()];
 }

@@ -1,6 +1,16 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { AssociationPayment, Meter, Provider, ProviderStatus, Reading, ReadingSource } from './types';
+import type {
+  AssociationPayment,
+  Meter,
+  Provider,
+  ProviderInvoice,
+  ProviderMonthly,
+  ProviderPayment,
+  ProviderStatus,
+  Reading,
+  ReadingSource,
+} from './types';
 
 // ---------- Contoare ----------
 
@@ -95,6 +105,112 @@ export async function setProviderStatusError(db: SQLiteDatabase, provider: Provi
      WHERE meter_id IN (SELECT id FROM meters WHERE provider = ?)`,
     error,
     provider,
+  );
+}
+
+// ---------- Istoric furnizori ----------
+
+/** Înlocuiește datele lunare primite de la furnizor (păstrează lunile pe care nu le-a trimis). */
+export async function saveProviderMonthly(db: SQLiteDatabase, rows: ProviderMonthly[]): Promise<void> {
+  for (const r of rows) {
+    await db.runAsync(
+      `INSERT INTO provider_monthly (meter_id, month, consumption, index_value, reading_type)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(meter_id, month) DO UPDATE SET
+         consumption = COALESCE(excluded.consumption, provider_monthly.consumption),
+         index_value = COALESCE(excluded.index_value, provider_monthly.index_value),
+         reading_type = COALESCE(excluded.reading_type, provider_monthly.reading_type)`,
+      r.meter_id,
+      r.month,
+      r.consumption,
+      r.index_value,
+      r.reading_type,
+    );
+  }
+}
+
+export function listProviderMonthly(db: SQLiteDatabase, meterId: string, fromMonth: string): Promise<ProviderMonthly[]> {
+  return db.getAllAsync<ProviderMonthly>(
+    'SELECT * FROM provider_monthly WHERE meter_id = ? AND month >= ? ORDER BY month',
+    meterId,
+    fromMonth,
+  );
+}
+
+/**
+ * Salvează facturile. Dacă `complete` e true, lista e completă (toate facturile
+ * din perioadă) și facturile care nu mai apar ca neplătite sunt marcate plătite.
+ */
+export async function saveProviderInvoices(
+  db: SQLiteDatabase,
+  meterId: string,
+  invoices: Omit<ProviderInvoice, 'meter_id'>[],
+  complete: boolean,
+): Promise<void> {
+  if (!complete) {
+    // Avem doar facturile neplătite: tot ce era neplătit și nu mai apare a fost plătit
+    const numbers = invoices.map((i) => i.invoice_number);
+    const ph = numbers.map(() => '?').join(',') || "''";
+    await db.runAsync(
+      `UPDATE provider_invoices SET paid = 1, unpaid = 0
+       WHERE meter_id = ? AND paid = 0 AND invoice_number NOT IN (${ph})`,
+      meterId,
+      ...numbers,
+    );
+  }
+  for (const i of invoices) {
+    await db.runAsync(
+      `INSERT INTO provider_invoices (meter_id, invoice_number, issue_date, due_date, amount, unpaid, paid)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(meter_id, invoice_number) DO UPDATE SET
+         issue_date = COALESCE(excluded.issue_date, provider_invoices.issue_date),
+         due_date = COALESCE(excluded.due_date, provider_invoices.due_date),
+         amount = excluded.amount, unpaid = excluded.unpaid, paid = excluded.paid`,
+      meterId,
+      i.invoice_number,
+      i.issue_date,
+      i.due_date,
+      i.amount,
+      i.unpaid,
+      i.paid,
+    );
+  }
+}
+
+export function listProviderInvoices(db: SQLiteDatabase, meterId: string, fromDate: string): Promise<ProviderInvoice[]> {
+  return db.getAllAsync<ProviderInvoice>(
+    `SELECT * FROM provider_invoices
+     WHERE meter_id = ? AND (paid = 0 OR COALESCE(issue_date, due_date, '9999') >= ?)
+     ORDER BY COALESCE(issue_date, due_date) DESC`,
+    meterId,
+    fromDate,
+  );
+}
+
+export function listUnpaidInvoices(db: SQLiteDatabase): Promise<(ProviderInvoice & { name: string; provider: Provider })[]> {
+  return db.getAllAsync(
+    `SELECT i.*, m.name, m.provider FROM provider_invoices i JOIN meters m ON m.id = i.meter_id
+     WHERE i.paid = 0 AND i.unpaid > 0 AND m.active = 1 ORDER BY i.due_date`,
+  );
+}
+
+export async function saveProviderPayments(db: SQLiteDatabase, rows: ProviderPayment[]): Promise<void> {
+  for (const p of rows) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO provider_payments (meter_id, paid_on, amount, reference) VALUES (?, ?, ?, ?)`,
+      p.meter_id,
+      p.paid_on,
+      p.amount,
+      p.reference,
+    );
+  }
+}
+
+export function listProviderPayments(db: SQLiteDatabase, meterId: string, fromDate: string): Promise<ProviderPayment[]> {
+  return db.getAllAsync<ProviderPayment>(
+    'SELECT * FROM provider_payments WHERE meter_id = ? AND paid_on >= ? ORDER BY paid_on DESC',
+    meterId,
+    fromDate,
   );
 }
 

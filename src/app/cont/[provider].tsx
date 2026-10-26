@@ -36,7 +36,7 @@ export default function AccountScreen() {
 
   async function finish() {
     await saveCredentials(provider, { email: email.trim(), password });
-    const result = await syncProvider(db, provider);
+    const result = await syncProvider(db, provider, true);
     setBusy(false);
     if (result.status === 'ok') {
       info('Cont conectat', `Am găsit ${result.meters} ${result.meters === 1 ? 'contor' : 'contoare'}.`);

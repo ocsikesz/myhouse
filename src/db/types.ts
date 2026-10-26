@@ -47,6 +47,32 @@ export interface ProviderStatus {
   error: string | null;
 }
 
+export interface ProviderMonthly {
+  meter_id: string;
+  /** YYYY-MM */
+  month: string;
+  consumption: number | null;
+  index_value: number | null;
+  reading_type: string | null;
+}
+
+export interface ProviderInvoice {
+  meter_id: string;
+  invoice_number: string;
+  issue_date: string | null;
+  due_date: string | null;
+  amount: number;
+  unpaid: number;
+  paid: number;
+}
+
+export interface ProviderPayment {
+  meter_id: string;
+  paid_on: string;
+  amount: number;
+  reference: string;
+}
+
 export interface AssociationPayment {
   id: number;
   /** Luna, format YYYY-MM */

@@ -33,10 +33,10 @@ export default function HomeScreen() {
     };
   });
 
-  async function refresh() {
+  async function refresh(force = true) {
     setRefreshing(true);
     try {
-      await syncAll(db);
+      await syncAll(db, force);
     } finally {
       setRefreshing(false);
       reload();
@@ -49,7 +49,7 @@ export default function HomeScreen() {
     if (!data || autoSynced.current || !data.hasAccounts) return;
     autoSynced.current = true;
     const age = data.lastSync ? Date.now() - Date.parse(data.lastSync) : Infinity;
-    if (age > STALE_MS) refresh();
+    if (age > STALE_MS) refresh(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
@@ -59,7 +59,7 @@ export default function HomeScreen() {
   const payment = data.payment?.month === month ? data.payment : null;
 
   return (
-    <Screen refreshing={refreshing} onRefresh={refresh}>
+    <Screen refreshing={refreshing} onRefresh={() => refresh(true)}>
       <SectionTitle>De făcut</SectionTitle>
       {data.tasks.length === 0 ? (
         <Card>

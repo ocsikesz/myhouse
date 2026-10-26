@@ -74,6 +74,39 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v3 — istoric anual de la furnizori: consum lunar, facturi, plăți
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE provider_monthly (
+        meter_id     TEXT NOT NULL REFERENCES meters(id) ON DELETE CASCADE,
+        month        TEXT NOT NULL,
+        consumption  REAL,
+        index_value  REAL,
+        reading_type TEXT,
+        PRIMARY KEY (meter_id, month)
+      );
+
+      CREATE TABLE provider_invoices (
+        meter_id        TEXT NOT NULL REFERENCES meters(id) ON DELETE CASCADE,
+        invoice_number  TEXT NOT NULL,
+        issue_date      TEXT,
+        due_date        TEXT,
+        amount          REAL NOT NULL,
+        unpaid          REAL NOT NULL DEFAULT 0,
+        paid            INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (meter_id, invoice_number)
+      );
+
+      CREATE TABLE provider_payments (
+        meter_id  TEXT NOT NULL REFERENCES meters(id) ON DELETE CASCADE,
+        paid_on   TEXT NOT NULL,
+        amount    REAL NOT NULL,
+        reference TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (meter_id, paid_on, amount, reference)
+      );
+    `);
+  },
 ];
 
 export const DB_NAME = 'casamea.db';

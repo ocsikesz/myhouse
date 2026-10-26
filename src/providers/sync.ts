@@ -6,15 +6,19 @@ import {
   getProviderStatus,
   latestReading,
   saveProviderStatus,
+  getSetting,
+  saveProviderInvoices,
+  saveProviderMonthly,
+  saveProviderPayments,
   setProviderStatusError,
   setSetting,
   upsertMeter,
 } from '@/db/repo';
 import type { MeterKind, Provider, ProviderStatus } from '@/db/types';
-import { todayIso } from '@/lib/format';
+import { historyStart, todayIso } from '@/lib/format';
 
 import { getCredentials, getTokens, saveTokens } from './credentials';
-import { ElectricaClient, type ElectricaTokens } from './electrica';
+import { ElectricaClient, electricaReadingsToMonthly, type ElectricaTokens } from './electrica';
 import { EonClient, type EonTokens } from './eon';
 import { AuthRequiredError } from './http';
 
@@ -41,6 +45,27 @@ export interface RemoteMeter {
   submittedIndex: number | null;
   submittedAt: string | null;
   submitInfo: Record<string, string> | null;
+  /** Istoric anual — doar când a fost cerut (vezi HISTORY_MAX_AGE) */
+  history?: RemoteHistory;
+}
+
+export interface RemoteHistory {
+  monthly: { month: string; consumption: number | null; index: number | null; readingType: string | null }[];
+  invoices: { number: string; issueDate: string | null; dueDate: string | null; amount: number; unpaid: number; paid: boolean }[];
+  /** true = lista conține și facturile plătite */
+  invoicesComplete: boolean;
+  payments: { date: string; amount: number; reference: string }[];
+}
+
+/** Istoricul (facturi, consum) se reîmprospătează mai rar decât fereastra de citire */
+const HISTORY_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const historyKey = (p: AccountProvider) => `history.last_run.${p}`;
+
+
+async function historyDue(db: SQLiteDatabase, provider: AccountProvider, force: boolean): Promise<boolean> {
+  if (force) return true;
+  const last = await getSetting(db, historyKey(provider));
+  return !last || Date.now() - Date.parse(last) > HISTORY_MAX_AGE_MS;
 }
 
 export const meterIdFor = (provider: string, externalId: string) => `${provider}:${externalId}`;
@@ -95,6 +120,37 @@ export async function storeRemoteMeters(db: SQLiteDatabase, provider: RemoteMete
     };
     await saveProviderStatus(db, status);
 
+    if (r.history) {
+      const h = r.history;
+      await saveProviderMonthly(
+        db,
+        h.monthly.map((m) => ({
+          meter_id: id,
+          month: m.month,
+          consumption: m.consumption,
+          index_value: m.index,
+          reading_type: m.readingType,
+        })),
+      );
+      await saveProviderInvoices(
+        db,
+        id,
+        h.invoices.map((i) => ({
+          invoice_number: i.number,
+          issue_date: i.issueDate,
+          due_date: i.dueDate,
+          amount: i.amount,
+          unpaid: i.unpaid,
+          paid: i.paid ? 1 : 0,
+        })),
+        h.invoicesComplete,
+      );
+      await saveProviderPayments(
+        db,
+        h.payments.map((p) => ({ meter_id: id, paid_on: p.date, amount: p.amount, reference: p.reference })),
+      );
+    }
+
     // Istoric: înregistrăm indexul facturat când se schimbă
     if (r.lastIndex !== null) {
       const last = await latestReading(db, id);
@@ -130,16 +186,34 @@ export async function makeElectricaClient(): Promise<ElectricaClient | null> {
   return new ElectricaClient(creds, tokens, (t) => saveTokens('electrica', t));
 }
 
-export async function syncElectrica(db: SQLiteDatabase): Promise<SyncResult> {
+export async function syncElectrica(db: SQLiteDatabase, force = false): Promise<SyncResult> {
   const client = await makeElectricaClient();
   if (!client) return { status: 'not_configured' };
   try {
     const today = todayIso();
+    const withHistory = await historyDue(db, 'electrica', force);
+    const from = historyStart(today);
     const places = await client.getPlaces();
     const remote: RemoteMeter[] = [];
+    // Facturile vin per cod client — le cerem o singură dată pentru fiecare
+    const invoicesCache = new Map<string, Awaited<ReturnType<ElectricaClient['getInvoices']>>>();
     for (const p of places) {
       const m = await client.getMeter(p.nlc, today);
+      let history: RemoteHistory | undefined;
+      if (withHistory) {
+        const key = `${p.clientCode}|${p.contractAccount}`;
+        if (!invoicesCache.has(key)) invoicesCache.set(key, await client.getInvoices(p.clientCode, p.contractAccount, from, today));
+        // Consumul lunii se calculează din citirea anterioară, deci filtrăm după calcul
+        const readings = await client.getReadings(p.clientCode, p.nlc);
+        history = {
+          monthly: electricaReadingsToMonthly(readings).filter((r) => r.month >= from.slice(0, 7)),
+          invoices: invoicesCache.get(key) ?? [],
+          invoicesComplete: true,
+          payments: [],
+        };
+      }
       remote.push({
+        history,
         provider: 'electrica',
         externalId: p.nlc,
         kind: p.serviceType.toLowerCase().includes('gaz') ? 'gaz' : 'electricitate',
@@ -156,6 +230,7 @@ export async function syncElectrica(db: SQLiteDatabase): Promise<SyncResult> {
       });
     }
     await storeRemoteMeters(db, 'electrica', remote);
+    if (withHistory) await setSetting(db, historyKey('electrica'), new Date().toISOString());
     return { status: 'ok', meters: remote.length };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -165,18 +240,39 @@ export async function syncElectrica(db: SQLiteDatabase): Promise<SyncResult> {
   }
 }
 
-export async function syncEon(db: SQLiteDatabase): Promise<SyncResult> {
+export async function syncEon(db: SQLiteDatabase, force = false): Promise<SyncResult> {
   const client = await makeEonClient();
   if (!client) return { status: 'not_configured' };
   try {
     const today = todayIso();
+    const withHistory = await historyDue(db, 'eon', force);
+    const from = historyStart(today);
     const contracts = await client.getContracts();
     const remote: RemoteMeter[] = [];
     for (const c of contracts) {
       const kind: MeterKind | null = c.utilityType === '02' ? 'gaz' : c.utilityType === '01' ? 'electricitate' : null;
       if (!kind) continue;
       const idx = await client.getMeterIndex(c.accountContract, today);
+      let history: RemoteHistory | undefined;
+      if (withHistory) {
+        const consumption = await client.getMonthlyConsumption(c.accountContract);
+        const indexes = await client.getMeterHistory(c.accountContract);
+        const byMonth = new Map<string, RemoteHistory['monthly'][number]>();
+        for (const r of consumption) byMonth.set(r.month, { ...r });
+        for (const r of indexes) {
+          const prev = byMonth.get(r.month);
+          byMonth.set(r.month, { month: r.month, consumption: prev?.consumption ?? null, index: r.index, readingType: r.readingType });
+        }
+        const inv = await client.getInvoices(c.accountContract);
+        history = {
+          monthly: [...byMonth.values()].filter((r) => r.month >= from.slice(0, 7) && r.month <= today.slice(0, 7)),
+          invoices: inv.invoices,
+          invoicesComplete: inv.complete,
+          payments: await client.getPayments(c.accountContract, from),
+        };
+      }
       remote.push({
+        history,
         provider: 'eon',
         externalId: c.accountContract,
         kind,
@@ -193,6 +289,7 @@ export async function syncEon(db: SQLiteDatabase): Promise<SyncResult> {
       });
     }
     await storeRemoteMeters(db, 'eon', remote);
+    if (withHistory) await setSetting(db, historyKey('eon'), new Date().toISOString());
     return { status: 'ok', meters: remote.length };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -241,14 +338,15 @@ export async function submitProviderIndex(
   return result;
 }
 
-export function syncProvider(db: SQLiteDatabase, provider: AccountProvider): Promise<SyncResult> {
-  return provider === 'eon' ? syncEon(db) : syncElectrica(db);
+/** `force` = reîncarcă și istoricul (facturi, consum), nu doar fereastra de citire. */
+export function syncProvider(db: SQLiteDatabase, provider: AccountProvider, force = false): Promise<SyncResult> {
+  return provider === 'eon' ? syncEon(db, force) : syncElectrica(db, force);
 }
 
 export const LAST_SYNC = 'sync.last_run';
 
-export async function syncAll(db: SQLiteDatabase): Promise<Record<AccountProvider, SyncResult>> {
-  const result = { eon: await syncProvider(db, 'eon'), electrica: await syncProvider(db, 'electrica') };
+export async function syncAll(db: SQLiteDatabase, force = false): Promise<Record<AccountProvider, SyncResult>> {
+  const result = { eon: await syncProvider(db, 'eon', force), electrica: await syncProvider(db, 'electrica', force) };
   await setSetting(db, LAST_SYNC, new Date().toISOString());
   return result;
 }

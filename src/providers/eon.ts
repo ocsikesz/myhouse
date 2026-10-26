@@ -381,4 +381,144 @@ export class EonClient {
     if (res.status >= 200 && res.status < 300) return { ok: true };
     return { ok: false, message: errorMessage(res.data, `E.ON a respins indexul (HTTP ${res.status})`) };
   }
+
+  /** Consumul lunar facturat (endpoint-ul graficului din Myline). */
+  async getMonthlyConsumption(accountContract: string): Promise<MonthlyRow[]> {
+    const res = await this.request('GET', `${API}/invoices/v1/invoices/graphic-consumption/${encodeURIComponent(accountContract)}`);
+    return res.status === 200 ? parseEonGraphicConsumption(res.data) : [];
+  }
+
+  async getMeterHistory(accountContract: string): Promise<MonthlyRow[]> {
+    const res = await this.request('GET', `${API}/meterreadings/v1/meter-reading/${encodeURIComponent(accountContract)}/history`);
+    return res.status === 200 ? parseEonMeterHistory(res.data) : [];
+  }
+
+  /**
+   * Facturile contractului. Încearcă întâi lista completă (plătite + neplătite);
+   * dacă API-ul nu o oferă, revine la facturile neplătite (`complete: false`).
+   */
+  async getInvoices(accountContract: string): Promise<{ invoices: InvoiceRow[]; complete: boolean }> {
+    const base = `${API}/invoices/v1/invoices/list?accountContract=${encodeURIComponent(accountContract)}`;
+    const all = await this.request('GET', base);
+    if (all.status === 200 && (Array.isArray(all.data) || isRecord(all.data))) {
+      const invoices = parseEonInvoices(all.data);
+      // Lista e „completă” doar dacă apare cel puțin o factură plătită
+      if (invoices.some((i) => i.paid)) return { invoices, complete: true };
+    }
+    const unpaid = await this.request('GET', `${base}&status=unpaid`);
+    if (unpaid.status !== 200) return { invoices: [], complete: false };
+    return { invoices: parseEonInvoices(unpaid.data), complete: false };
+  }
+
+  /** Plățile până la data dată (inclusiv), cele mai noi primele; pagini limitate. */
+  async getPayments(accountContract: string, fromDate: string, maxPages = 6): Promise<PaymentRow[]> {
+    const rows: PaymentRow[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const res = await this.request(
+        'GET',
+        `${API}/invoices/v1/payments/payment-list?accountContract=${encodeURIComponent(accountContract)}&page=${page}`,
+      );
+      if (res.status !== 200 || !isRecord(res.data)) break;
+      const chunk = parseEonPayments(res.data.list);
+      rows.push(...chunk);
+      if (!res.data.hasNext || chunk.length === 0 || chunk.every((p) => p.date < fromDate)) break;
+    }
+    return rows.filter((p) => p.date >= fromDate);
+  }
+}
+
+// ---------- Istoric anual: consum, indexuri, facturi, plăți ----------
+
+export interface MonthlyRow {
+  /** YYYY-MM */
+  month: string;
+  consumption: number | null;
+  index: number | null;
+  readingType: string | null;
+}
+
+export interface InvoiceRow {
+  number: string;
+  issueDate: string | null;
+  dueDate: string | null;
+  amount: number;
+  unpaid: number;
+  paid: boolean;
+}
+
+export interface PaymentRow {
+  date: string;
+  amount: number;
+  reference: string;
+}
+
+const HISTORY_TYPES: Record<string, string> = { '01': 'citit distribuitor', '02': 'autocitit', '03': 'estimat' };
+
+function monthKey(year: unknown, month: unknown): string | null {
+  const y = num(year);
+  const m = num(month);
+  if (y === null || m === null || m < 1 || m > 12) return null;
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+/** graphic-consumption → consum lunar */
+export function parseEonGraphicConsumption(data: unknown): MonthlyRow[] {
+  const list = isRecord(data) && Array.isArray(data.consumption) ? data.consumption : [];
+  const rows: MonthlyRow[] = [];
+  for (const it of list) {
+    if (!isRecord(it)) continue;
+    const month = monthKey(it.year, it.month);
+    const value = num(it.consumptionValue);
+    if (month && value !== null) rows.push({ month, consumption: value, index: null, readingType: null });
+  }
+  return rows.sort((a, b) => a.month.localeCompare(b.month));
+}
+
+/** meter-reading/history → indexul lunar */
+export function parseEonMeterHistory(data: unknown): MonthlyRow[] {
+  const history = isRecord(data) && Array.isArray(data.history) ? data.history : [];
+  const rows = new Map<string, MonthlyRow>();
+  for (const y of history) {
+    if (!isRecord(y)) continue;
+    for (const meter of Array.isArray(y.meters) ? y.meters : []) {
+      if (!isRecord(meter)) continue;
+      const idx = Array.isArray(meter.indexes) ? meter.indexes.find(isRecord) : undefined;
+      if (!idx) continue;
+      for (const r of Array.isArray(idx.readings) ? idx.readings : []) {
+        if (!isRecord(r)) continue;
+        const month = monthKey(y.year, r.month);
+        const value = num(r.value);
+        if (!month || value === null) continue;
+        rows.set(month, { month, consumption: null, index: value, readingType: HISTORY_TYPES[str(r.readingType)] ?? null });
+      }
+    }
+  }
+  return [...rows.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+export function parseEonInvoices(data: unknown): InvoiceRow[] {
+  const list = Array.isArray(data) ? data : isRecord(data) && Array.isArray(data.list) ? data.list : [];
+  const rows: InvoiceRow[] = [];
+  for (const it of list) {
+    if (!isRecord(it)) continue;
+    const amount = num(it.issuedValue ?? it.invoiceValue);
+    if (amount === null) continue;
+    const balance = num(it.balanceValue ?? it.balance) ?? 0;
+    const issueDate = isoDay(it.emissionDate ?? it.issueDate ?? it.invoiceDate);
+    const dueDate = isoDay(it.maturityDate ?? it.dueDate);
+    const number = str(it.invoiceNumber ?? it.documentNumber) || `${issueDate ?? dueDate ?? 'x'}-${amount}`;
+    rows.push({ number, issueDate, dueDate, amount, unpaid: Math.max(0, balance), paid: balance <= 0.009 });
+  }
+  return rows;
+}
+
+export function parseEonPayments(list: unknown): PaymentRow[] {
+  const rows: PaymentRow[] = [];
+  for (const it of Array.isArray(list) ? list : []) {
+    if (!isRecord(it)) continue;
+    const date = isoDay(it.paymentDate);
+    const amount = num(it.value);
+    if (date && amount !== null) rows.push({ date, amount, reference: str(it.documentNumber ?? it.invoiceNumber ?? '') });
+  }
+  return rows;
 }

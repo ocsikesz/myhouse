@@ -24,7 +24,7 @@ export default function UtilitiesScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    const r = await syncAll(db);
+    const r = await syncAll(db, true);
     setRefreshing(false);
     const errors = Object.values(r)
       .filter((x) => x.status === 'auth' || x.status === 'error')

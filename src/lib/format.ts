@@ -83,3 +83,8 @@ export function formatDateTime(iso: string): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+/** Prima zi a anului trecut — ca să putem compara anul curent cu cel trecut. */
+export function historyStart(today = todayIso()): string {
+  return `${Number(today.slice(0, 4)) - 1}-01-01`;
+}
