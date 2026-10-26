@@ -42,23 +42,40 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
 
-      - name: Decode signing keystore
+      # Semnare: secretele repo-ului au prioritate; dacă lipsesc, se folosește
+      # keystore-ul din signing/ (repo privat, aplicație de uz personal).
+      - name: Prepare signing
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::error::Lipsește secretul ANDROID_KEYSTORE_BASE64"; exit 1
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "SIGN_STORE_PASS=$KS_PASS"
+              echo "SIGN_KEY_ALIAS=$KEY_ALIAS"
+              echo "SIGN_KEY_PASS=$KEY_PASS"
+            } >> "$GITHUB_ENV"
+          else
+            cp signing/casamea-release.keystore "$RUNNER_TEMP/release.keystore"
+            prop() { grep "^$1=" signing/signing.properties | cut -d= -f2-; }
+            {
+              echo "SIGN_STORE_PASS=$(prop storePassword)"
+              echo "SIGN_KEY_ALIAS=$(prop keyAlias)"
+              echo "SIGN_KEY_PASS=$(prop keyPassword)"
+            } >> "$GITHUB_ENV"
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
       - name: Build release APK
         working-directory: android
         run: |
           ./gradlew assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
-            -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.ANDROID_KEY_PASSWORD }}"
+            -Pandroid.injected.signing.store.password="$SIGN_STORE_PASS" \
+            -Pandroid.injected.signing.key.alias="$SIGN_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$SIGN_KEY_PASS"
 
       - name: Rename APK
         run: |

@@ -43,6 +43,5 @@ npx expo run:android      # development build (expo-sqlite are cod nativ, nu mer
 
 La fiecare push pe `main`, workflow-ul `.github/workflows/android-apk.yml` construiește un APK semnat și îl publică în **Releases** (`CasaMea-<build>.apk`). Numărul rulării devine `versionCode`, deci fiecare APK nou se instalează peste cel vechi.
 
-Secrete necesare în repo (Settings → Secrets and variables → Actions):
-`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Semnare: keystore-ul de release e în `signing/` (repo privat, aplicație de uz personal). Opțional, poți muta cheia în secretele repo-ului (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) — workflow-ul le folosește cu prioritate.
 Keystore-ul trebuie păstrat — fără el nu mai poți instala update-uri peste aplicația existentă.
