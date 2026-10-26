@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Badge, Body, Button, Card, Divider, Field, Row, Screen, SectionTitle, Title } from '@/components/ui';
-import { listAssociationPayments, setAssociationPaid, upsertAssociationPayment } from '@/db/repo';
+import { Badge, Body, Button, Card, CardHeader, Field, IconButton, Row, Screen, SectionTitle } from '@/components/ui';
+import { deleteAssociationPayment, listAssociationPayments, setAssociationPaid, upsertAssociationPayment } from '@/db/repo';
 import type { AssociationPayment } from '@/db/types';
 import { confirm, info } from '@/lib/dialogs';
 import {
@@ -80,6 +80,18 @@ export default function AssociationScreen() {
     reload();
   }
 
+  async function onDelete(p: AssociationPayment) {
+    const ok = await confirm('Ștergi luna?', `${formatMonth(p.month)}: ${formatLei(p.amount)}`, 'Șterge');
+    if (!ok) return;
+    await deleteAssociationPayment(db, p.month);
+    // Dacă era luna din formular, golim câmpurile
+    if (p.month === month) {
+      setAmount('');
+      setDue('');
+    }
+    reload();
+  }
+
   const payments = data ?? [];
   const editing = payments.find((p) => p.month === month);
   const total12 = payments
@@ -90,19 +102,31 @@ export default function AssociationScreen() {
     <>
       <Stack.Screen options={{ title: 'Asociația de proprietari' }} />
       <Screen>
-        <SectionTitle>Consum lunar</SectionTitle>
         <Card>
+          <CardHeader
+            icon="office-building-outline"
+            color={t.association}
+            title="Consum lunar"
+            subtitle={editing ? 'Luna e salvată, poți corecta suma.' : 'Introdu suma de pe lista de plată.'}
+          />
           <Row style={{ justifyContent: 'space-between' }}>
-            <Button title="‹" variant="secondary" onPress={() => loadMonth(previousMonth(month), payments)} />
-            <Title>{formatMonth(month)}</Title>
-            <Button
-              title="›"
-              variant="secondary"
+            <IconButton icon="chevron-left" label="Luna anterioară" onPress={() => loadMonth(previousMonth(month), payments)} />
+            <Text style={[styles.month, { color: t.text }]}>{formatMonth(month)}</Text>
+            <IconButton
+              icon="chevron-right"
+              label="Luna următoare"
               disabled={month >= thisMonth}
               onPress={() => loadMonth(addMonths(month, 1), payments)}
             />
           </Row>
-          <Field label="Suma de plată (lei)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0,00" />
+          <Field
+            label="Suma de plată (lei)"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="0,00"
+            large
+          />
           <Field
             label="Scadență (opțional)"
             value={due}
@@ -111,41 +135,64 @@ export default function AssociationScreen() {
             placeholder="ZZ.LL.AAAA"
             hint="Dacă o completezi, primești reminder înainte de scadență."
           />
-          <Button title={editing ? 'Actualizează' : 'Salvează'} onPress={onSave} loading={saving} />
-        </Card>
-
-        <SectionTitle>Istoric</SectionTitle>
-        <Card>
-          {payments.length === 0 && <Body muted>Nicio sumă introdusă încă.</Body>}
-          {payments.map((p, i) => (
-            <View key={p.id}>
-              {i > 0 && <Divider />}
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Pressable style={{ flex: 1, gap: 2 }} onPress={() => loadMonth(p.month, payments)}>
-                  <Body>{formatMonth(p.month)}</Body>
-                  <Body muted>
-                    {formatLei(p.amount)}
-                    {p.due_date ? ` · scadent ${formatDate(p.due_date)}` : ''}
-                    {p.paid_at ? ` · plătit ${formatDate(p.paid_at)}` : ''}
-                  </Body>
-                </Pressable>
-                <Pressable onPress={() => onTogglePaid(p)} hitSlop={8}>
-                  <Badge text={p.paid_at ? 'plătit' : 'de plată'} color={p.paid_at ? t.success : t.danger} />
-                </Pressable>
-              </Row>
-            </View>
-          ))}
-          {payments.length > 0 && (
-            <Body muted>Atinge eticheta ca să marchezi plătit / neplătit. Atinge luna ca s-o editezi.</Body>
-          )}
+          <Row>
+            <Button
+              title={editing ? 'Actualizează' : 'Salvează'}
+              icon="content-save-outline"
+              onPress={onSave}
+              loading={saving}
+              style={{ flex: 1 }}
+            />
+            {editing ? <IconButton icon="trash-can-outline" label="Șterge luna" color={t.danger} onPress={() => onDelete(editing)} /> : null}
+          </Row>
         </Card>
 
         {payments.length > 0 && (
-          <Card>
-            <Body muted>Total ultimele 12 luni: {formatLei(total12)}</Body>
+          <Card style={{ backgroundColor: t.hero, borderColor: t.hero }}>
+            <Text style={{ color: t.heroMuted, fontSize: 13 }}>Total ultimele 12 luni</Text>
+            <Text style={[styles.big, { color: t.heroText }]}>{formatLei(total12)}</Text>
           </Card>
+        )}
+
+        <SectionTitle>Istoric</SectionTitle>
+        <Card style={{ paddingVertical: 6 }}>
+          {payments.length === 0 && <Body muted>Nicio sumă introdusă încă.</Body>}
+          {payments.map((p, i) => (
+            <View
+              key={p.id}
+              style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}
+            >
+              <Pressable style={{ flex: 1, gap: 2 }} onPress={() => loadMonth(p.month, payments)}>
+                <Text style={[styles.rowTitle, { color: p.month === month ? t.accent : t.text }]}>
+                  {formatMonth(p.month)}
+                </Text>
+                <Text style={[styles.meta, { color: t.textMuted }]}>
+                  {formatLei(p.amount)}
+                  {p.due_date ? ` · scadent ${formatDate(p.due_date)}` : ''}
+                  {p.paid_at ? ` · plătit ${formatDate(p.paid_at)}` : ''}
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => onTogglePaid(p)} hitSlop={8}>
+                <Badge text={p.paid_at ? 'plătit' : 'de plată'} color={p.paid_at ? t.success : t.danger} />
+              </Pressable>
+              <IconButton icon="trash-can-outline" label={`Șterge ${formatMonth(p.month)}`} color={t.danger} onPress={() => onDelete(p)} />
+            </View>
+          ))}
+        </Card>
+        {payments.length > 0 && (
+          <Text style={[styles.meta, { color: t.textMuted, paddingHorizontal: 4 }]}>
+            Atinge eticheta ca să marchezi plătit / neplătit, luna ca s-o editezi, coșul ca s-o ștergi.
+          </Text>
         )}
       </Screen>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  month: { fontSize: 18, fontWeight: '700', textTransform: 'capitalize' },
+  big: { fontSize: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  rowTitle: { fontSize: 15, fontWeight: '700', textTransform: 'capitalize' },
+  meta: { fontSize: 13 },
+});

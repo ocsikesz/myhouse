@@ -5,6 +5,7 @@ import { MeterCamera } from '@/components/MeterCamera';
 import { Button } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import type { Candidate, MeterExpectation, Rect } from '@/lib/meterOcr';
+import { pickMeterPhoto } from '@/lib/photos';
 import { readMeterPhoto, type ScanResult } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 
@@ -36,7 +37,13 @@ export function ScanButton({
 
   const toText = (v: number) => (decimals === 0 ? String(Math.trunc(v)) : formatNumber(v, decimals).replace(/\./g, ''));
 
-  async function onCapture(photo: { uri: string; region: Rect }) {
+  /** Poza din galerie: nu are cadru de încadrare, deci citim toată poza. */
+  async function onGallery() {
+    const uri = await pickMeterPhoto(prefix);
+    if (uri) await onCapture({ uri });
+  }
+
+  async function onCapture(photo: { uri: string; region?: Rect }) {
     setCamera(false);
     setBusy(true);
     try {
@@ -67,12 +74,14 @@ export function ScanButton({
       <MeterCamera visible={camera} prefix={prefix} onCancel={() => setCamera(false)} onCapture={onCapture} />
       <View style={styles.row}>
         <Button
-          title={result ? 'Fă altă poză' : 'Fotografiază și citește'}
+          title={result ? 'Altă poză' : 'Fotografiază'}
+          icon="camera-outline"
           variant="secondary"
           onPress={() => setCamera(true)}
           loading={busy}
           style={{ flex: 1 }}
         />
+        <Button title="Din galerie" icon="image-outline" variant="secondary" onPress={onGallery} disabled={busy} style={{ flex: 1 }} />
         {result ? <Image source={{ uri: result.photoUri }} style={styles.thumb} /> : null}
       </View>
       {result?.error ? <Text style={{ color: t.warning, fontSize: 13 }}>{result.error}</Text> : null}
@@ -95,7 +104,7 @@ export function ScanButton({
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
-                  <Text style={[styles.chipText, { color: active ? t.surface : t.text }]}>
+                  <Text style={[styles.chipText, { color: active ? t.onAccent : t.text }]}>
                     {formatNumber(c.value, decimals === 0 ? 0 : Math.min(decimals, 3))} {unit}
                   </Text>
                 </Pressable>

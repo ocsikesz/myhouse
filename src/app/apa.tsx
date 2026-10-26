@@ -1,13 +1,15 @@
 import { router, Stack } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { isNativeAvailable, isWhatsAppInstalled, shareToWhatsApp } from 'casamea-native';
 
+import { MeterDrum } from '@/components/MeterDrum';
+import { ReadingSheet } from '@/components/ReadingSheet';
 import { ScanButton } from '@/components/ScanButton';
-import { Badge, Body, Button, Card, Divider, Field, Row, Screen, SectionTitle, Title } from '@/components/ui';
-import { addReading, deleteReading, getSetting, listMeters, listReadings, markReadingSent, setSetting } from '@/db/repo';
+import { Badge, Body, Button, Card, CardHeader, Field, Icon, Screen, SectionTitle, type IconName } from '@/components/ui';
+import { addReading, getSetting, listMeters, listReadings, markReadingSent, setSetting } from '@/db/repo';
 import type { Meter, Reading } from '@/db/types';
 import { checkNewReading, withConsumption } from '@/lib/consumption';
 import { confirm, info } from '@/lib/dialogs';
@@ -33,6 +35,13 @@ function shortLabel(m: Meter): string {
   return part.charAt(0).toUpperCase() + part.slice(1);
 }
 
+function meterIcon(m: Meter): IconName {
+  const n = m.name.toLowerCase();
+  if (n.includes('bucăt') || n.includes('bucat')) return 'silverware-fork-knife';
+  if (n.includes('baie')) return 'shower-head';
+  return 'water-outline';
+}
+
 export default function WaterScreen() {
   const db = useSQLiteContext();
   const t = useTheme();
@@ -43,6 +52,8 @@ export default function WaterScreen() {
   const [justSaved, setJustSaved] = useState<Reading[] | null>(null);
   /** Crește la fiecare salvare, ca să golească rezultatul scanării */
   const [saveCount, setSaveCount] = useState(0);
+  /** Citirea deschisă în foaia de detalii */
+  const [selected, setSelected] = useState<Reading | null>(null);
 
   const { data, reload } = useDbQuery<WaterData>(async (d) => {
     const meters = (await listMeters(d)).filter((m) => m.kind === 'apa');
@@ -174,75 +185,83 @@ export default function WaterScreen() {
     reload();
   }
 
-  async function onDelete(r: Reading, m: Meter) {
-    const ok = await confirm(
-      'Ștergi citirea?',
-      `${shortLabel(m)}: ${wholeIndex(r.value)} ${m.unit} din ${formatDate(r.read_at)}`,
-      'Șterge',
-    );
-    if (!ok) return;
-    await deleteReading(db, r.id);
-    deletePhoto(r.photo_uri);
-    reload();
-  }
-
   // Ultimele citiri netrimise din luna curentă — pot fi retrimise oricând
   const month = currentMonth();
   const unsent = data.meters
     .map((m) => data.history[m.id]?.[0])
     .filter((r): r is Reading => !!r && !r.sent_at && r.read_at.startsWith(month));
   const pending = justSaved ?? (unsent.length > 0 ? unsent : null);
+  const selectedMeter = selected ? data.meters.find((m) => m.id === selected.meter_id) : undefined;
 
   return (
     <>
       <Stack.Screen options={{ title: 'Apă rece' }} />
       <Screen>
-        <SectionTitle>Index nou, {formatDate(todayIso())}</SectionTitle>
-        <Card>
-          {data.meters.map((m, i) => {
-            const last = data.history[m.id]?.[0];
-            return (
-              <View key={m.id} style={{ gap: 8 }}>
-                {i > 0 && <Divider />}
-                <Field
-                  label={shortLabel(m)}
-                  value={values[m.id] ?? ''}
-                  onChangeText={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
-                  keyboardType="number-pad"
-                  placeholder={last ? wholeIndex(last.value) : '0'}
-                  hint={last ? `Ultimul: ${wholeIndex(last.value)} ${m.unit} (${formatDate(last.read_at)})` : 'Prima citire'}
-                />
-                <ScanButton
-                  key={`${m.id}-${saveCount}`}
-                  prefix={m.id}
-                  expectation={expectationFrom(data.history[m.id] ?? [], 3)}
-                  decimals={0}
-                  unit={m.unit}
-                  onPhoto={(uri) => onPhoto(m, uri)}
-                  onValue={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
-                />
-              </View>
-            );
-          })}
-          <Button title="Salvează" onPress={onSave} loading={saving} />
-        </Card>
+        <SectionTitle>Index nou · {formatDate(todayIso())}</SectionTitle>
+        {data.meters.map((m) => {
+          const last = data.history[m.id]?.[0];
+          return (
+            <Card key={m.id}>
+              <CardHeader
+                icon={meterIcon(m)}
+                color={t.water}
+                title={shortLabel(m)}
+                subtitle={last ? `Ultimul: ${wholeIndex(last.value)} ${m.unit} · ${formatDate(last.read_at)}` : 'Prima citire'}
+              />
+              <MeterDrum value={last ? last.value : null} unit={m.unit} size="small" />
+              <Field
+                label="Indexul de azi (m³ întregi)"
+                value={values[m.id] ?? ''}
+                onChangeText={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
+                keyboardType="number-pad"
+                placeholder={last ? wholeIndex(last.value) : '0'}
+                large
+              />
+              <ScanButton
+                key={`${m.id}-${saveCount}`}
+                prefix={m.id}
+                expectation={expectationFrom(data.history[m.id] ?? [], 3)}
+                decimals={0}
+                unit={m.unit}
+                onPhoto={(uri) => onPhoto(m, uri)}
+                onValue={(v) => setValues((s) => ({ ...s, [m.id]: v }))}
+              />
+            </Card>
+          );
+        })}
+        <Button title="Salvează indexurile" icon="content-save-outline" onPress={onSave} loading={saving} />
 
         {pending && (
-          <Card style={{ borderColor: '#25D366' }}>
-            <Title>Gata de trimis</Title>
-            {pending.map((r) => {
-              const m = data.meters.find((x) => x.id === r.meter_id);
-              return m ? (
-                <Row key={r.id} style={{ justifyContent: 'space-between' }}>
-                  <Body>
-                    {shortLabel(m)}: {wholeIndex(r.value)} {m.unit}
-                  </Body>
-                  {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumb} /> : null}
-                </Row>
-              ) : null;
-            })}
-            {pending.some((r) => r.photo_uri) ? <Body muted>Pozele se trimit împreună cu mesajul.</Body> : null}
-            <Button title="Trimite pe WhatsApp" variant="whatsapp" onPress={() => onSendWhatsApp(pending)} />
+          <Card style={{ borderColor: t.whatsapp, borderWidth: 1.5 }}>
+            <CardHeader
+              icon="whatsapp"
+              color={t.whatsapp}
+              title="Gata de trimis"
+              subtitle={pending.some((r) => r.photo_uri) ? 'Pozele se trimit împreună cu mesajul.' : 'Mesaj către reprezentantul firmei de apă.'}
+            />
+            <View style={styles.pendingRow}>
+              {pending.map((r) => {
+                const m = data.meters.find((x) => x.id === r.meter_id);
+                return m ? (
+                  <View key={r.id} style={[styles.pendingItem, { backgroundColor: t.surfaceAlt }]}>
+                    {r.photo_uri ? (
+                      <Image source={{ uri: r.photo_uri }} style={styles.thumb} />
+                    ) : (
+                      <View style={[styles.thumb, styles.noThumb, { borderColor: t.border }]}>
+                        <Icon name="image-off-outline" color={t.textMuted} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.meta, { color: t.textMuted }]}>{shortLabel(m)}</Text>
+                      <Text style={[styles.value, { color: t.text }]}>
+                        {wholeIndex(r.value)} {m.unit}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null;
+              })}
+            </View>
+            <Button title="Trimite pe WhatsApp" icon="send" variant="whatsapp" onPress={() => onSendWhatsApp(pending)} />
           </Card>
         )}
 
@@ -251,37 +270,70 @@ export default function WaterScreen() {
           return (
             <View key={m.id} style={{ gap: 8 }}>
               <SectionTitle>Istoric {shortLabel(m).toLowerCase()}</SectionTitle>
-              <Card>
+              <Card style={{ paddingVertical: 6 }}>
                 {points.length === 0 && <Body muted>Nicio citire încă.</Body>}
                 {points.map(({ reading: r, delta }, i) => (
-                  <Pressable key={r.id} onLongPress={() => onDelete(r, m)}>
-                    {i > 0 && <Divider />}
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Body>
-                          {wholeIndex(r.value)} {m.unit}
-                        </Body>
-                        <Body muted>
-                          {formatDate(r.read_at)}
-                          {delta !== null ? `, consum ${wholeIndex(delta)} ${m.unit}` : ''}
-                        </Body>
+                  <Pressable
+                    key={r.id}
+                    onPress={() => setSelected(r)}
+                    style={({ pressed }) => [
+                      styles.historyRow,
+                      i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border },
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityHint="Deschide poza și opțiunile: înlocuiește poza, șterge citirea"
+                  >
+                    {r.photo_uri ? (
+                      <Image source={{ uri: r.photo_uri }} style={styles.thumbSmall} />
+                    ) : (
+                      <View style={[styles.thumbSmall, styles.noThumb, { borderColor: t.border }]}>
+                        <Icon name="image-plus" color={t.textMuted} size={18} />
                       </View>
-                      {r.photo_uri ? <Image source={{ uri: r.photo_uri }} style={styles.thumbSmall} /> : null}
-                      <Badge text={r.sent_at ? 'trimis' : 'netrimis'} color={r.sent_at ? t.success : t.textMuted} />
-                    </Row>
+                    )}
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[styles.value, { color: t.text }]}>
+                        {wholeIndex(r.value)} {m.unit}
+                      </Text>
+                      <Text style={[styles.meta, { color: t.textMuted }]}>
+                        {formatDate(r.read_at)}
+                        {delta !== null ? ` · consum ${wholeIndex(delta)} ${m.unit}` : ''}
+                      </Text>
+                    </View>
+                    <Badge text={r.sent_at ? 'trimis' : 'netrimis'} color={r.sent_at ? t.success : t.textMuted} />
+                    <Icon name="dots-vertical" color={t.textMuted} />
                   </Pressable>
                 ))}
-                {points.length > 0 && <Body muted>Ține apăsat pe o citire ca s-o ștergi.</Body>}
               </Card>
+              {points.length > 0 && <Text style={[styles.meta, styles.tip, { color: t.textMuted }]}>Atinge o citire ca să vezi poza, s-o schimbi sau s-o ștergi.</Text>}
             </View>
           );
         })}
       </Screen>
+
+      <ReadingSheet
+        reading={selected}
+        label={selectedMeter ? shortLabel(selectedMeter) : ''}
+        valueText={selected && selectedMeter ? `${wholeIndex(selected.value)} ${selectedMeter.unit}` : ''}
+        photoPrefix={selected?.meter_id ?? 'apa'}
+        onClose={() => setSelected(null)}
+        onChanged={() => {
+          setJustSaved(null);
+          reload();
+        }}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  thumb: { width: 46, height: 46, borderRadius: 8 },
-  thumbSmall: { width: 36, height: 36, borderRadius: 6 },
+  thumb: { width: 52, height: 52, borderRadius: 12 },
+  thumbSmall: { width: 44, height: 44, borderRadius: 10 },
+  noThumb: { borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  pendingRow: { gap: 8 },
+  pendingItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8, borderRadius: 14 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  value: { fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  meta: { fontSize: 13 },
+  tip: { paddingHorizontal: 4 },
 });

@@ -15,6 +15,16 @@ export async function takeMeterPhoto(prefix: string, crop = false): Promise<stri
   return persistPhoto(result.assets[0].uri, prefix);
 }
 
+/**
+ * Alege o poză din galerie (selectorul de poze al sistemului, fără permisiuni)
+ * și o copiază în directorul permanent al aplicației. Returnează URI-ul sau null.
+ */
+export async function pickMeterPhoto(prefix: string): Promise<string | null> {
+  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+  if (result.canceled || !result.assets?.[0]) return null;
+  return persistPhoto(result.assets[0].uri, prefix);
+}
+
 /** Copiază o poză din cache în directorul permanent al aplicației. */
 export async function persistPhoto(uri: string, prefix: string): Promise<string> {
   const dir = new Directory(Paths.document, 'photos');

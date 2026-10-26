@@ -262,6 +262,11 @@ export async function deleteReading(db: SQLiteDatabase, id: number): Promise<voi
   await db.runAsync('DELETE FROM readings WHERE id = ?', id);
 }
 
+/** Atașează, înlocuiește sau (cu null) scoate poza unei citiri. */
+export async function setReadingPhoto(db: SQLiteDatabase, id: number, photoUri: string | null): Promise<void> {
+  await db.runAsync('UPDATE readings SET photo_uri = ? WHERE id = ?', photoUri, id);
+}
+
 // ---------- Asociația de proprietari ----------
 
 export function listAssociationPayments(db: SQLiteDatabase, limit = 24): Promise<AssociationPayment[]> {
@@ -295,6 +300,10 @@ export async function setAssociationPaid(
   paidAt: string | null,
 ): Promise<void> {
   await db.runAsync('UPDATE association_payments SET paid_at = ? WHERE month = ?', paidAt, month);
+}
+
+export async function deleteAssociationPayment(db: SQLiteDatabase, month: string): Promise<void> {
+  await db.runAsync('DELETE FROM association_payments WHERE month = ?', month);
 }
 
 // ---------- Setări ----------
