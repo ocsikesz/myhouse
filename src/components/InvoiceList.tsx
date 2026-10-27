@@ -14,7 +14,7 @@ function label(inv: ProviderInvoice): string {
   const d = inv.issue_date ?? inv.due_date;
   if (!d) return `Factura ${inv.invoice_number}`;
   const m = LUNI[Number(d.slice(5, 7)) - 1];
-  return `Factura din ${m}`;
+  return `${inv.amount < 0 ? 'Regularizare' : 'Factura'} din ${m}`;
 }
 
 export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; today: string }) {
@@ -27,8 +27,10 @@ export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; 
       {invoices.map((inv, i) => {
         const state = invoiceState(inv, today);
         const days = inv.due_date ? daysBetween(today, inv.due_date) : null;
-        const statusText =
-          state === 'paid'
+        const credit = inv.amount < 0;
+        const statusText = credit
+          ? 'Credit în favoarea ta (se scade din facturile următoare)'
+          : state === 'paid'
             ? 'Plătită'
             : state === 'overdue'
               ? `Restantă de ${-(days ?? 0)} ${days === -1 ? 'zi' : 'zile'}`
@@ -37,7 +39,7 @@ export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; 
                 : days !== null
                   ? `De plată până pe ${formatDate(inv.due_date!)}`
                   : 'De plată';
-        const color = state === 'paid' ? t.success : state === 'overdue' ? t.danger : t.warning;
+        const color = credit || state === 'paid' ? t.success : state === 'overdue' ? t.danger : t.warning;
         return (
           <View
             key={inv.invoice_number}

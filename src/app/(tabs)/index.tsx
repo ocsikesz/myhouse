@@ -380,6 +380,8 @@ function StatementRow({
         )}
         {line.cost !== null && line.cost > 0 ? (
           <Text style={[styles.stStatus, { color: paid ? t.heroMuted : '#FFD58A' }]}>{paid ? '✓ plătit' : 'de plată'}</Text>
+        ) : line.cost !== null && line.cost < 0 ? (
+          <Text style={[styles.stStatus, { color: t.heroMuted }]}>credit în favoarea ta</Text>
         ) : null}
       </View>
     </View>

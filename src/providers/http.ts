@@ -49,9 +49,18 @@ export function num(v: unknown): number | null {
 }
 
 /** Normalizează '2026-03-07 23:59:59' / '2026-03-07T…' → '2026-03-07'; null dacă nu e dată. */
+/**
+ * Data ca YYYY-MM-DD. Acceptă '2026-10-27…' și formatul românesc '27.10.2026'
+ * (așa trimite E.ON datele facturilor), plus '27/10/2026' și '27-10-2026'.
+ */
 export function isoDay(v: unknown): string | null {
-  const s = str(v);
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+  const s = str(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b/.exec(s);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), m[3]];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 /** Eroare de autentificare care cere acțiunea utilizatorului (parolă greșită, cod 2FA). */

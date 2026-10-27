@@ -135,3 +135,28 @@ test('trimitere index cu token și reîncercare la 401', async () => {
   assert.deepEqual(r, { ok: true });
   assert.equal(calls.filter((x) => x.url.endsWith('/meter-reading/index')).length, 2);
 });
+
+import { parseEonInvoices } from '../src/providers/eon';
+import { isoDay } from '../src/providers/http';
+
+test('date: format ISO și românesc', () => {
+  assert.equal(isoDay('2026-10-27'), '2026-10-27');
+  assert.equal(isoDay('2026-10-27T10:00:00'), '2026-10-27');
+  assert.equal(isoDay('27.10.2026'), '2026-10-27');
+  assert.equal(isoDay('5.1.2026'), '2026-01-05');
+  assert.equal(isoDay('27/10/2026'), '2026-10-27');
+  assert.equal(isoDay('31.13.2026'), null);
+  assert.equal(isoDay(''), null);
+  assert.equal(isoDay(null), null);
+});
+
+test('facturi E.ON: datele ZZ.LL.AAAA și factura negativă (credit)', () => {
+  const rows = parseEonInvoices({
+    list: [
+      { invoiceNumber: '012506805283', issuedValue: -170.81, balanceValue: 0, emissionDate: '06.10.2026', maturityDate: '21.10.2026' },
+      { invoiceNumber: '002501621289', issuedValue: 981.62, balanceValue: 0, emissionDate: '05.09.2026', maturityDate: '25.09.2026' },
+    ],
+  });
+  assert.deepEqual(rows[0], { number: '012506805283', issueDate: '2026-10-06', dueDate: '2026-10-21', amount: -170.81, unpaid: 0, paid: true });
+  assert.equal(rows[1].issueDate, '2026-09-05');
+});
