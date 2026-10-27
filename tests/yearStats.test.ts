@@ -56,3 +56,33 @@ test('defalcare pe luni: consum, index, facturat, plătit', () => {
   assert.equal(rows[1].unpaid, 200);
   assert.equal(rows[0].paid, 50);
 });
+
+import { invoiceIndexDelta } from '../src/lib/yearStats';
+
+test('diferența de index pe factură: E.ON (aceeași lună), estimat și regularizare', () => {
+  const monthly = [
+    { month: '2026-02', index_value: 10758, reading_type: 'autocitit' },
+    { month: '2026-03', index_value: 10956, reading_type: 'autocitit' },
+    { month: '2026-08', index_value: 11594, reading_type: 'estimat' },
+    { month: '2026-09', index_value: 11791, reading_type: 'estimat' },
+    { month: '2026-10', index_value: 11573, reading_type: 'citit distribuitor' },
+  ];
+  // Factura din 27.03.2026 → indexul din martie față de februarie: 198 m³
+  assert.deepEqual(invoiceIndexDelta('2026-03-27', monthly, 0), { from: 10758, to: 10956, delta: 198, months: 1, estimated: false });
+  assert.equal(invoiceIndexDelta('2026-09-25', monthly, 0)!.estimated, true);
+  // Regularizarea din octombrie: citirea reală e sub estimarea din septembrie
+  assert.equal(invoiceIndexDelta('2026-10-21', monthly, 0)!.delta, -218);
+  // Lipsesc lunile aprilie–iulie → diferența acoperă 5 luni
+  assert.equal(invoiceIndexDelta('2026-08-28', monthly, 0)!.months, 5);
+  assert.equal(invoiceIndexDelta('2026-04-30', monthly, 0), null);
+  assert.equal(invoiceIndexDelta(null, monthly, 0), null);
+});
+
+test('diferența de index pe factură: Electrica (factura în luna următoare)', () => {
+  const monthly = [
+    { month: '2026-07', index_value: 19674, reading_type: 'citit distribuitor' },
+    { month: '2026-08', index_value: null, reading_type: null },
+    { month: '2026-09', index_value: 20391, reading_type: 'autocitit' },
+  ];
+  assert.deepEqual(invoiceIndexDelta('2026-10-06', monthly, 1), { from: 19674, to: 20391, delta: 717, months: 2, estimated: false });
+});

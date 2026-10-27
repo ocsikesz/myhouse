@@ -3,7 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { ProviderInvoice, ProviderPayment } from '@/db/types';
 import { daysBetween, formatDate, formatLei } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import { invoiceState } from '@/lib/yearStats';
+import { formatNumber } from '@/lib/format';
+import { invoiceState, type InvoiceIndex } from '@/lib/yearStats';
 
 const LUNI = [
   'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
@@ -17,7 +18,18 @@ function label(inv: ProviderInvoice): string {
   return `${inv.amount < 0 ? 'Regularizare' : 'Factura'} din ${m}`;
 }
 
-export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; today: string }) {
+export function InvoiceList({
+  invoices,
+  today,
+  indexOf,
+  unit,
+}: {
+  invoices: ProviderInvoice[];
+  today: string;
+  /** Diferența de index pe care se bazează factura (dacă se știe) */
+  indexOf?: (inv: ProviderInvoice) => InvoiceIndex | null;
+  unit?: string;
+}) {
   const t = useTheme();
   if (invoices.length === 0) {
     return <Text style={{ color: t.textMuted }}>Nicio factură în perioada asta.</Text>;
@@ -40,6 +52,7 @@ export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; 
                   ? `De plată până pe ${formatDate(inv.due_date!)}`
                   : 'De plată';
         const color = credit || state === 'paid' ? t.success : state === 'overdue' ? t.danger : t.warning;
+        const idx = indexOf?.(inv) ?? null;
         return (
           <View
             key={inv.invoice_number}
@@ -49,6 +62,13 @@ export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; 
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[styles.title, { color: t.text }]}>{label(inv)}</Text>
               <Text style={[styles.meta, { color }]}>{statusText}</Text>
+              {idx ? (
+                <Text style={[styles.meta, { color: t.textMuted }]}>
+                  Index {formatNumber(idx.to - idx.delta, 0)} → {formatNumber(idx.to, 0)}
+                  {idx.estimated ? ' · estimat' : ''}
+                  {idx.months > 1 ? ` · ${idx.months} luni` : ''}
+                </Text>
+              ) : null}
               {inv.issue_date ? (
                 <Text style={[styles.meta, { color: t.textMuted }]}>
                   Emisă {formatDate(inv.issue_date)}, nr. {inv.invoice_number}
@@ -59,6 +79,12 @@ export function InvoiceList({ invoices, today }: { invoices: ProviderInvoice[]; 
               <Text style={[styles.amount, { color: t.text }]}>{formatLei(inv.amount)}</Text>
               {state !== 'paid' && inv.unpaid < inv.amount - 0.009 ? (
                 <Text style={[styles.meta, { color }]}>rest {formatLei(inv.unpaid)}</Text>
+              ) : null}
+              {idx ? (
+                <Text style={[styles.delta, { color: idx.delta < 0 ? t.success : idx.estimated ? t.warning : t.text }]}>
+                  {idx.delta > 0 ? '+' : ''}
+                  {formatNumber(idx.delta, 0)} {unit ?? ''}
+                </Text>
               ) : null}
             </View>
           </View>
@@ -93,4 +119,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: '600' },
   meta: { fontSize: 13 },
   amount: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  delta: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 2 },
 });

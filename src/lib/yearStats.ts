@@ -141,3 +141,49 @@ export function buildMonthBreakdown(
   }
   return [...rows.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
+
+// ---------- Diferența de index pe factură ----------
+
+export interface InvoiceIndex {
+  /** Indexul anterior și cel de pe factură */
+  from: number;
+  to: number;
+  /** Diferența (negativă la regularizare, când un index estimat e corectat de o citire reală) */
+  delta: number;
+  /** Câte luni acoperă (dacă lipsesc indexuri pe luni intermediare) */
+  months: number;
+  /** Indexul de pe factură e estimat de furnizor, nu citit */
+  estimated: boolean;
+}
+
+function monthIndex(month: string): number {
+  return Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7)) - 1;
+}
+
+/**
+ * Indexul pe care se bazează o factură și diferența față de indexul anterior.
+ * `lagMonths`: E.ON facturează în aceeași lună cu indexul (0); Electrica emite
+ * factura la începutul lunii următoare (1).
+ */
+export function invoiceIndexDelta(
+  issueDate: string | null,
+  monthly: { month: string; index_value: number | null; reading_type: string | null }[],
+  lagMonths: 0 | 1,
+): InvoiceIndex | null {
+  if (!issueDate) return null;
+  const target = monthIndex(issueDate.slice(0, 7)) - lagMonths;
+  const withIndex = monthly
+    .filter((m) => m.index_value !== null)
+    .sort((a, b) => a.month.localeCompare(b.month));
+  const cur = withIndex.find((m) => monthIndex(m.month) === target);
+  if (!cur) return null;
+  const prev = [...withIndex].reverse().find((m) => monthIndex(m.month) < target);
+  if (!prev) return null;
+  return {
+    from: prev.index_value!,
+    to: cur.index_value!,
+    delta: Math.round((cur.index_value! - prev.index_value!) * 1000) / 1000,
+    months: target - monthIndex(prev.month),
+    estimated: (cur.reading_type ?? '').toLowerCase().includes('estimat'),
+  };
+}

@@ -5,7 +5,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { InvoiceList, PaymentList } from '@/components/InvoiceList';
 import { MeterDrum } from '@/components/MeterDrum';
-import { MonthTable } from '@/components/MonthTable';
 import { ScanButton } from '@/components/ScanButton';
 import { Body, Button, Card, Field, Screen, SectionTitle } from '@/components/ui';
 import { YearChart } from '@/components/YearChart';
@@ -32,7 +31,7 @@ import {
 import { expectationFrom } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
-import { billedInYear, buildMonthBreakdown, buildYearComparison, invoiceState } from '@/lib/yearStats';
+import { billedInYear, buildYearComparison, invoiceIndexDelta, invoiceState } from '@/lib/yearStats';
 import { submitProviderIndex, syncProvider, type AccountProvider } from '@/providers/sync';
 
 export default function ProviderMeterScreen() {
@@ -70,7 +69,6 @@ export default function ProviderMeterScreen() {
     monthly.map((m) => ({ month: m.month, value: m.consumption })),
     today,
   );
-  const breakdown = buildMonthBreakdown(year, monthly, invoices, payments);
   const thisYearInvoices = invoices.filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(String(year)) || !i.paid);
   const billed = billedInYear(invoices, payments, year);
   const unpaid = invoices.filter((i) => invoiceState(i, today) !== 'paid');
@@ -231,14 +229,19 @@ export default function ProviderMeterScreen() {
           />
         </Card>
 
-        <SectionTitle>Pe luni {year}</SectionTitle>
-        <Card>
-          <MonthTable rows={breakdown} unit={meter.unit} />
-        </Card>
-
         <SectionTitle>Facturi {year}</SectionTitle>
         <Card>
-          <InvoiceList invoices={thisYearInvoices} today={today} />
+          <InvoiceList
+            invoices={thisYearInvoices}
+            today={today}
+            unit={meter.unit}
+            // E.ON facturează în luna indexului; Electrica la începutul lunii următoare
+            indexOf={(inv) => invoiceIndexDelta(inv.issue_date, monthly, provider === 'electrica' ? 1 : 0)}
+          />
+          <Body muted>
+            Sub sumă: diferența de index față de factura anterioară, în {meter.unit}. „Estimat” = index estimat de
+            furnizor; o diferență negativă înseamnă regularizare după o citire reală.
+          </Body>
         </Card>
 
         {showPayments && (
