@@ -1,7 +1,7 @@
 import { router, type Href } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Body, Card, CardHeader, Chevron, Icon, IconBadge, Screen, SectionTitle, type IconName } from '@/components/ui';
 import {
@@ -10,7 +10,6 @@ import {
   listMeters,
   listProviderInvoices,
   listProviderMonthly,
-  listProviderPayments,
   listProviderStatuses,
   listReadings,
   listUnpaidInvoices,
@@ -18,7 +17,7 @@ import {
 import type { Meter } from '@/db/types';
 import { addMonths, currentMonth, formatDate, formatDateTime, formatLei, formatMonth, formatNumber, todayIso } from '@/lib/format';
 import { loadTasks } from '@/lib/loadTasks';
-import { kindConsumption, monthCost, monthPaid, type ConsumptionRow, type KindConsumption } from '@/lib/monthSummary';
+import { buildStatement, kindConsumption, type ConsumptionRow, type KindConsumption, type StatementLine } from '@/lib/monthSummary';
 import { monthlyConsumption } from '@/lib/stats';
 import type { HomeTask } from '@/lib/tasks';
 import { useTheme, type Theme } from '@/lib/theme';
@@ -79,6 +78,8 @@ export default function HomeScreen() {
   const t = useTheme();
   const db = useSQLiteContext();
   const [refreshing, setRefreshing] = useState(false);
+  /** Luna extrasului: implicit luna trecută (consumul ei e facturat luna asta) */
+  const [statementMonth, setStatementMonth] = useState(() => addMonths(currentMonth(), -1));
 
   const { data, reload } = useDbQuery(async (d) => {
     const month = currentMonth();
@@ -87,37 +88,35 @@ export default function HomeScreen() {
     const consumption = async (k: Meter['kind']) =>
       kindConsumption(await Promise.all(ofKind(k).map((m) => meterRows(d, m, month))), month);
 
-    const providerMeters = meters.filter((m) => m.provider !== 'deservcom');
-    const invoices = (
-      await Promise.all(
-        providerMeters.map(async (m) =>
-          (await listProviderInvoices(d, m.id, `${month}-01`)).map((i) => ({ ...i, provider: m.provider })),
-        ),
-      )
-    ).flat();
-    // Plățile din ultimele luni: ne spun dacă furnizorul raportează plăți
-    const payments = (
-      await Promise.all(
-        providerMeters.map(async (m) =>
-          (await listProviderPayments(d, m.id, `${addMonths(month, -3)}-01`)).map((p) => ({ ...p, provider: m.provider })),
-        ),
-      )
-    ).flat();
     const payment = (await listAssociationPayments(d, 3)).find((p) => p.month === month) ?? null;
     const unpaidByMeter = (await listUnpaidInvoices(d)).reduce<Record<string, number>>((acc, i) => {
       acc[i.meter_id] = (acc[i.meter_id] ?? 0) + i.unpaid;
       return acc;
     }, {});
 
+    // Extrasul lunii alese: consumul exact al lunii + factura emisă luna următoare + asociația pe luna aceea
+    const sm = statementMonth;
+    const rowsOf = (k: Meter['kind']) => Promise.all(ofKind(k).map((m) => meterRows(d, m, addMonths(sm, 1))));
+    const invoicesOf = async (k: Meter['kind']) =>
+      (await Promise.all(ofKind(k).map((m) => listProviderInvoices(d, m.id, `${sm}-01`)))).flat();
+    const statement = buildStatement({
+      month: sm,
+      water: await rowsOf('apa'),
+      gas: await rowsOf('gaz'),
+      electricity: await rowsOf('electricitate'),
+      gasInvoices: await invoicesOf('gaz'),
+      electricityInvoices: await invoicesOf('electricitate'),
+      association: (await listAssociationPayments(d, 36)).find((p) => p.month === sm) ?? null,
+    });
+
     const water = await Promise.all(ofKind('apa').map(async (m) => ({ meter: m, last: (await listReadings(d, m.id, 1))[0] ?? null })));
 
     return {
+      statement,
       tasks: await loadTasks(d),
       gas: await consumption('gaz'),
       electricity: await consumption('electricitate'),
       waterUse: await consumption('apa'),
-      cost: monthCost(invoices, payment?.amount ?? null, month),
-      paid: monthPaid(payments, invoices, payment, month),
       unpaidByMeter,
       water,
       providers: await listProviderStatuses(d),
@@ -125,7 +124,7 @@ export default function HomeScreen() {
       lastSync: await getSetting(d, LAST_SYNC),
       hasAccounts: !!(await getCredentials('eon')) || !!(await getCredentials('electrica')),
     };
-  });
+  }, [statementMonth]);
 
   async function refresh(force = true) {
     setRefreshing(true);
@@ -152,7 +151,7 @@ export default function HomeScreen() {
 
   const month = currentMonth();
   const now = new Date();
-  const { cost, payment } = data;
+  const { payment, statement: st } = data;
 
   /** Valoarea de consum + luna, dacă nu e luna curentă */
   const use = (c: KindConsumption, decimals = 0) => ({
@@ -185,12 +184,6 @@ export default function HomeScreen() {
       <Badge text="netrimis" color={t.warning} />
     );
 
-  const costParts = [
-    cost.eon > 0 ? `E.ON ${formatLei(cost.eon)}` : null,
-    cost.electrica > 0 ? `Electrica ${formatLei(cost.electrica)}` : null,
-    cost.association > 0 ? `Asociație ${formatLei(cost.association)}` : null,
-  ].filter(Boolean);
-
   const gas = use(data.gas);
   const el = use(data.electricity);
   const wat = use(data.waterUse);
@@ -211,33 +204,47 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={{ gap: 4 }}>
-          <Text style={[styles.heroLabel, { color: t.heroMuted }]}>{formatMonth(month)}</Text>
-          <View style={styles.money}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.heroSmall, { color: t.heroMuted }]}>De plătit (facturat)</Text>
-              <Text style={[styles.heroTotal, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
-                {formatLei(cost.total)}
-              </Text>
-            </View>
-            <View style={[styles.moneySep, { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.heroSmall, { color: t.heroMuted }]}>Plătit</Text>
-              <Text style={[styles.heroTotal, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
-                {formatLei(data.paid)}
-              </Text>
-            </View>
+        <View style={styles.stHead}>
+          <Pressable onPress={() => setStatementMonth(addMonths(statementMonth, -1))} hitSlop={10} accessibilityLabel="Luna anterioară">
+            <Icon name="chevron-left" color={t.heroText} size={26} />
+          </Pressable>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={[styles.stMonth, { color: t.heroText }]}>{capitalize(formatMonth(statementMonth))}</Text>
+            <Text style={[styles.heroSmall, { color: t.heroMuted }]}>consum și cost</Text>
           </View>
-          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
-            {costParts.length ? costParts.join(' · ') : 'Nicio factură și nicio sumă la asociație luna asta, încă.'}
-          </Text>
+          <Pressable
+            onPress={() => setStatementMonth(addMonths(statementMonth, 1))}
+            disabled={statementMonth >= month}
+            hitSlop={10}
+            accessibilityLabel="Luna următoare"
+            style={{ opacity: statementMonth >= month ? 0.3 : 1 }}
+          >
+            <Icon name="chevron-right" color={t.heroText} size={26} />
+          </Pressable>
         </View>
 
-        <Text style={[styles.heroLabel, { color: t.heroMuted, marginBottom: -8 }]}>Consumat</Text>
-        <View style={styles.pills}>
-          <Pill icon="fire" label="Gaz" value={gas.value} unit="m³" note={gas.note} />
-          <Pill icon="water-outline" label="Apă" value={wat.value} unit="m³" note={wat.note} />
-          <Pill icon="lightning-bolt-outline" label="Curent" value={el.value} unit="kWh" note={el.note} />
+        <View style={{ gap: 2 }}>
+          <StatementRow icon="water-outline" label="Apă rece" line={st.water} unit="m³" costText="inclusă la asociație" />
+          <StatementRow icon="fire" label="Gaz" line={st.gas} unit="m³" />
+          <StatementRow icon="lightning-bolt-outline" label="Curent" line={st.electricity} unit="kWh" />
+          <StatementRow icon="office-building-outline" label="Asociație" line={st.association} />
+        </View>
+
+        <View style={[styles.stSep, { backgroundColor: 'rgba(255,255,255,0.22)' }]} />
+        <View style={styles.stTotalRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.heroLabel, { color: t.heroMuted }]}>Total {monthName(statementMonth)}</Text>
+            <Text style={[styles.heroSmall, { color: t.heroMuted, marginTop: 2 }]}>
+              {st.total === 0
+                ? 'Nicio factură încă'
+                : st.unpaid > 0.009
+                  ? `Plătit ${formatLei(st.paid)} · rest ${formatLei(st.unpaid)}`
+                  : 'Totul plătit'}
+            </Text>
+          </View>
+          <Text style={[styles.stTotal, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
+            {formatLei(st.total)}
+          </Text>
         </View>
       </View>
 
@@ -332,19 +339,49 @@ export default function HomeScreen() {
   );
 }
 
-/** Consumul unei utilități în cardul de sus. */
-function Pill({ icon, label, value, unit, note }: { icon: IconName; label: string; value: string; unit: string; note: string | null }) {
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Un rând din extras: utilitatea și consumul în stânga, costul în dreapta. */
+function StatementRow({
+  icon,
+  label,
+  line,
+  unit,
+  costText,
+}: {
+  icon: IconName;
+  label: string;
+  line: StatementLine;
+  unit?: string;
+  costText?: string;
+}) {
   const t = useTheme();
+  const paid = line.cost !== null && line.cost > 0 && line.paid >= line.cost - 0.009;
   return (
-    <View style={[styles.pill, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-      <View style={styles.pillHead}>
-        <Icon name={icon} color={t.heroMuted} size={15} />
-        <Text style={[styles.pillLabel, { color: t.heroMuted }]}>{label}</Text>
+    <View style={styles.stRow}>
+      <View style={[styles.stIcon, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+        <Icon name={icon} color={t.heroText} size={18} />
       </View>
-      <Text style={[styles.pillValue, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
-        {value} <Text style={styles.pillUnit}>{unit}</Text>
-      </Text>
-      {note ? <Text style={[styles.pillNote, { color: t.heroMuted }]}>{note}</Text> : null}
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.stLabel, { color: t.heroText }]}>{label}</Text>
+        {unit ? (
+          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
+            {line.consumption !== null ? `${formatNumber(line.consumption, 0)} ${unit}` : `— ${unit}`}
+          </Text>
+        ) : null}
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        {line.cost !== null ? (
+          <Text style={[styles.stCost, { color: t.heroText }]}>{formatLei(line.cost)}</Text>
+        ) : (
+          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>{costText ?? 'nefacturat încă'}</Text>
+        )}
+        {line.cost !== null && line.cost > 0 ? (
+          <Text style={[styles.stStatus, { color: paid ? t.heroMuted : '#FFD58A' }]}>{paid ? '✓ plătit' : 'de plată'}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -396,22 +433,22 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
+  stHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stMonth: { fontSize: 20, fontWeight: '800' },
+  stRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7 },
+  stIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  stLabel: { fontSize: 15, fontWeight: '700' },
+  stCost: { fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  stStatus: { fontSize: 12, fontWeight: '600' },
+  stSep: { height: 1 },
+  stTotalRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stTotal: { fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], maxWidth: '60%' },
   hero: { borderRadius: 22, padding: 18, gap: 16 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroGreeting: { fontSize: 22, fontWeight: '800' },
   heroSmall: { fontSize: 13 },
-  heroTotal: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'], marginVertical: 2 },
   heroLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  money: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  moneySep: { width: 1, alignSelf: 'stretch' },
   heroIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pills: { flexDirection: 'row', gap: 8 },
-  pill: { flex: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, gap: 2 },
-  pillHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  pillLabel: { fontSize: 12, fontWeight: '600' },
-  pillValue: { fontSize: 19, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  pillUnit: { fontSize: 12, fontWeight: '600' },
-  pillNote: { fontSize: 11 },
   tiles: { flexDirection: 'row', gap: 12 },
   tile: { flex: 1, gap: 4 },
   tileHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },

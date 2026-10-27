@@ -78,3 +78,87 @@ export function monthPaid(
   if (association?.paid_at?.startsWith(month)) total += association.amount;
   return round2(total);
 }
+
+// ---------- Extrasul unei luni de consum ----------
+
+interface InvoiceLike {
+  issue_date: string | null;
+  due_date: string | null;
+  amount: number;
+  unpaid: number;
+  paid: number | boolean;
+}
+
+export interface StatementLine {
+  /** Consumul din luna extrasului; null = fără date */
+  consumption: number | null;
+  /** Costul; null = încă nefacturat (sau, la apă, inclus în asociație) */
+  cost: number | null;
+  /** Cât s-a plătit din cost */
+  paid: number;
+}
+
+export interface Statement {
+  water: StatementLine;
+  gas: StatementLine;
+  electricity: StatementLine;
+  association: StatementLine;
+  total: number;
+  paid: number;
+  unpaid: number;
+}
+
+/** Consumul exact al lunii, adunat pe contoare; null dacă niciun contor n-are date pe luna asta. */
+export function exactConsumption(perMeter: ConsumptionRow[][], month: string): number | null {
+  const rows = perMeter.flat().filter((r) => r.month === month && r.consumption !== null);
+  if (rows.length === 0) return null;
+  return Math.round(rows.reduce((s, r) => s + (r.consumption ?? 0), 0) * 1000) / 1000;
+}
+
+/** '2026-09' → '2026-10' */
+function nextMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Factura pentru consumul unei luni e emisă în luna următoare
+ * (consumul din septembrie → factura din octombrie).
+ */
+function billedFor(invoices: InvoiceLike[], month: string): { cost: number | null; paid: number } {
+  const billing = nextMonth(month);
+  const inv = invoices.filter((i) => (i.issue_date ?? i.due_date ?? '').startsWith(billing));
+  if (inv.length === 0) return { cost: null, paid: 0 };
+  const cost = round2(inv.reduce((s, i) => s + i.amount, 0));
+  const unpaid = inv.reduce((s, i) => s + (i.paid ? 0 : Math.max(0, i.unpaid)), 0);
+  return { cost, paid: round2(cost - unpaid) };
+}
+
+export function buildStatement(input: {
+  month: string;
+  water: ConsumptionRow[][];
+  gas: ConsumptionRow[][];
+  electricity: ConsumptionRow[][];
+  gasInvoices: InvoiceLike[];
+  electricityInvoices: InvoiceLike[];
+  association: { amount: number; paid_at: string | null } | null;
+}): Statement {
+  const { month } = input;
+  const gasBill = billedFor(input.gasInvoices, month);
+  const elBill = billedFor(input.electricityInvoices, month);
+  const lines = {
+    // Apa rece se plătește prin asociație, deci n-are cost separat
+    water: { consumption: exactConsumption(input.water, month), cost: null, paid: 0 },
+    gas: { consumption: exactConsumption(input.gas, month), ...gasBill },
+    electricity: { consumption: exactConsumption(input.electricity, month), ...elBill },
+    association: {
+      consumption: null,
+      cost: input.association ? round2(input.association.amount) : null,
+      paid: input.association?.paid_at ? round2(input.association.amount) : 0,
+    },
+  };
+  const all = [lines.gas, lines.electricity, lines.association];
+  const total = round2(all.reduce((s, l) => s + (l.cost ?? 0), 0));
+  const paid = round2(all.reduce((s, l) => s + l.paid, 0));
+  return { ...lines, total, paid, unpaid: round2(total - paid) };
+}
