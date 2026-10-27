@@ -107,6 +107,23 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v4 — sincronizare de familie: id stabil pe citiri, poza din cloud, coada de trimis
+  async (db) => {
+    await db.execAsync(`
+      ALTER TABLE readings ADD COLUMN uid TEXT;
+      ALTER TABLE readings ADD COLUMN photo_remote TEXT;
+      UPDATE readings SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
+      CREATE UNIQUE INDEX idx_readings_uid ON readings (uid);
+
+      CREATE TABLE sync_outbox (
+        kind       TEXT NOT NULL,
+        uid        TEXT NOT NULL,
+        queued_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (kind, uid)
+      );
+    `);
+  },
 ];
 
 export const DB_NAME = 'casamea.db';

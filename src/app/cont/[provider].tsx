@@ -3,7 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 
 import { Body, Button, Card, Field, Screen, SectionTitle, Title } from '@/components/ui';
-import { deactivateProvider } from '@/db/repo';
+import { deactivateProvider, queueSync } from '@/db/repo';
 import { confirm, info } from '@/lib/dialogs';
 import { clearAccount, getCredentials, saveCredentials, saveTokens } from '@/providers/credentials';
 import { ElectricaClient } from '@/providers/electrica';
@@ -36,6 +36,7 @@ export default function AccountScreen() {
 
   async function finish() {
     await saveCredentials(provider, { email: email.trim(), password });
+    await queueSync(db, 'credentials', provider);
     const result = await syncProvider(db, provider, true);
     setBusy(false);
     if (result.status === 'ok') {
@@ -97,9 +98,10 @@ export default function AccountScreen() {
   }
 
   async function onDisconnect() {
-    const ok = await confirm('Deconectezi contul?', 'Parola și sesiunea se șterg de pe telefon. Istoricul rămâne.', 'Deconectează');
+    const ok = await confirm('Deconectezi contul?', 'Parola și sesiunea se șterg de pe telefon și, dacă folosiți sincronizarea de familie, și de pe telefoanele familiei. Istoricul rămâne.', 'Deconectează');
     if (!ok) return;
     await clearAccount(provider);
+    await queueSync(db, 'credentials', provider);
     await deactivateProvider(db, provider);
     router.back();
   }

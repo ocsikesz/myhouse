@@ -134,6 +134,7 @@ export default function WaterScreen() {
             photo_uri: photos[meter.id] ?? null,
             sent_at: null,
             note: null,
+            uid: null,
           });
         }
       });

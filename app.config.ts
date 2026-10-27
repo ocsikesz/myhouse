@@ -12,5 +12,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.android,
       versionCode: buildNumber,
     },
+    extra: {
+      ...config.extra,
+      // Sincronizarea de familie (Supabase). Vin din secretele repo-ului în CI;
+      // cheia „anon” e publică prin design — datele sunt protejate de login + RLS.
+      supabaseUrl: process.env.SUPABASE_URL ?? '',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
+    },
   };
 };

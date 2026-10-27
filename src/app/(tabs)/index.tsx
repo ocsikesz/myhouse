@@ -25,6 +25,7 @@ import { useTheme, type Theme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
 import { getCredentials } from '@/providers/credentials';
 import { LAST_SYNC, syncAll } from '@/providers/sync';
+import { cloudSync } from '@/cloud/sync';
 
 /** Sincronizare automată la deschidere dacă datele sunt mai vechi de atât */
 const STALE_MS = 3 * 60 * 60 * 1000;
@@ -130,6 +131,7 @@ export default function HomeScreen() {
     setRefreshing(true);
     try {
       await syncAll(db, force);
+      await cloudSync(db);
     } finally {
       setRefreshing(false);
       reload();

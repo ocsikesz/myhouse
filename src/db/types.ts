@@ -23,6 +23,10 @@ export interface Reading {
   /** Când a fost trimis furnizorului (ISO), null dacă nu a fost trimis */
   sent_at: string | null;
   note: string | null;
+  /** Id stabil între telefoane (sincronizare); null doar înainte de salvare */
+  uid: string | null;
+  /** Calea pozei în cloud, dacă a fost urcată */
+  photo_remote?: string | null;
 }
 
 /** Starea unui contor de furnizor (E.ON / Electrica), din ultima sincronizare. */

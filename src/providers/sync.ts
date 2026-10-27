@@ -5,6 +5,7 @@ import {
   deactivateMissingMeters,
   getProviderStatus,
   latestReading,
+  markReadingSent,
   listReadings,
   saveProviderStatus,
   getSetting,
@@ -17,6 +18,7 @@ import {
 } from '@/db/repo';
 import type { MeterKind, Provider, ProviderStatus } from '@/db/types';
 import { historyStart, todayIso } from '@/lib/format';
+import { DEVICE } from '@/lib/settingsKeys';
 
 import { getCredentials, getTokens, saveTokens } from './credentials';
 import { ElectricaClient, electricaReadingsToMonthly, type ElectricaTokens } from './electrica';
@@ -355,7 +357,7 @@ export async function submitProviderIndex(
       photoUri,
       note: 'Autocitire trimisă din aplicație',
     });
-    await db.runAsync('UPDATE readings SET sent_at = ? WHERE id = ?', now, id);
+    await markReadingSent(db, id, now);
   }
   return result;
 }
@@ -368,6 +370,10 @@ export function syncProvider(db: SQLiteDatabase, provider: AccountProvider, forc
 export const LAST_SYNC = 'sync.last_run';
 
 export async function syncAll(db: SQLiteDatabase, force = false): Promise<Record<AccountProvider, SyncResult>> {
+  // Telefon al familiei care ia datele furnizorilor din cloud: nu se loghează (evită 2FA pe fiecare telefon)
+  if ((await getSetting(db, DEVICE.providerSync)) === '0') {
+    return { eon: { status: 'not_configured' }, electrica: { status: 'not_configured' } };
+  }
   const result = { eon: await syncProvider(db, 'eon', force), electrica: await syncProvider(db, 'electrica', force) };
   await setSetting(db, LAST_SYNC, new Date().toISOString());
   return result;

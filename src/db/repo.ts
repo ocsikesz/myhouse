@@ -1,5 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { onQueued } from '@/cloud/queue';
+import { SHARED_SETTINGS } from '@/lib/settingsKeys';
+
 import type {
   AssociationPayment,
   Meter,
@@ -11,6 +14,34 @@ import type {
   Reading,
   ReadingSource,
 } from './types';
+
+// ---------- Coada de sincronizare ----------
+
+export type SyncKind = 'reading' | 'assoc' | 'setting' | 'credentials' | 'provider';
+
+/** Marchează o înregistrare ca schimbată; sincronizarea o trimite în cloud. */
+export async function queueSync(db: SQLiteDatabase, kind: SyncKind, uid: string): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO sync_outbox (kind, uid) VALUES (?, ?)
+     ON CONFLICT(kind, uid) DO UPDATE SET queued_at = datetime('now')`,
+    kind,
+    uid,
+  );
+  onQueued(db);
+}
+
+/** Citirile manuale (apă, index trimis din aplicație) sunt ale familiei; cele de la furnizor vin în instantaneul furnizorilor. */
+async function queueReading(db: SQLiteDatabase, id: number): Promise<void> {
+  const r = await db.getFirstAsync<{ uid: string | null; source: string }>('SELECT uid, source FROM readings WHERE id = ?', id);
+  if (r?.uid && r.source === 'manual') await queueSync(db, 'reading', r.uid);
+}
+
+function newUid(): string {
+  const hex = '0123456789abcdef';
+  let s = '';
+  for (let i = 0; i < 32; i++) s += hex[Math.floor(Math.random() * 16)];
+  return s;
+}
 
 // ---------- Contoare ----------
 
@@ -242,29 +273,37 @@ export interface NewReading {
 
 export async function addReading(db: SQLiteDatabase, r: NewReading): Promise<number> {
   const res = await db.runAsync(
-    `INSERT INTO readings (meter_id, value, read_at, source, photo_uri, note)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO readings (meter_id, value, read_at, source, photo_uri, note, uid)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     r.meterId,
     r.value,
     r.readAt,
     r.source ?? 'manual',
     r.photoUri ?? null,
     r.note ?? null,
+    newUid(),
   );
+  await queueReading(db, res.lastInsertRowId);
   return res.lastInsertRowId;
 }
 
 export async function markReadingSent(db: SQLiteDatabase, id: number, sentAt: string): Promise<void> {
   await db.runAsync('UPDATE readings SET sent_at = ? WHERE id = ?', sentAt, id);
+  await queueReading(db, id);
 }
 
 export async function deleteReading(db: SQLiteDatabase, id: number): Promise<void> {
+  const r = await db.getFirstAsync<{ uid: string | null; source: string }>('SELECT uid, source FROM readings WHERE id = ?', id);
   await db.runAsync('DELETE FROM readings WHERE id = ?', id);
+  // Rândul nu mai există: sincronizarea trimite ștergerea
+  if (r?.uid && r.source === 'manual') await queueSync(db, 'reading', r.uid);
 }
 
 /** Atașează, înlocuiește sau (cu null) scoate poza unei citiri. */
 export async function setReadingPhoto(db: SQLiteDatabase, id: number, photoUri: string | null): Promise<void> {
-  await db.runAsync('UPDATE readings SET photo_uri = ? WHERE id = ?', photoUri, id);
+  // Poza nouă trebuie urcată din nou în cloud
+  await db.runAsync('UPDATE readings SET photo_uri = ?, photo_remote = NULL WHERE id = ?', photoUri, id);
+  await queueReading(db, id);
 }
 
 // ---------- Asociația de proprietari ----------
@@ -292,6 +331,7 @@ export async function upsertAssociationPayment(
     p.dueDate ?? null,
     p.note ?? null,
   );
+  await queueSync(db, 'assoc', p.month);
 }
 
 export async function setAssociationPaid(
@@ -300,10 +340,12 @@ export async function setAssociationPaid(
   paidAt: string | null,
 ): Promise<void> {
   await db.runAsync('UPDATE association_payments SET paid_at = ? WHERE month = ?', paidAt, month);
+  await queueSync(db, 'assoc', month);
 }
 
 export async function deleteAssociationPayment(db: SQLiteDatabase, month: string): Promise<void> {
   await db.runAsync('DELETE FROM association_payments WHERE month = ?', month);
+  await queueSync(db, 'assoc', month);
 }
 
 // ---------- Setări ----------
@@ -319,4 +361,5 @@ export async function setSetting(db: SQLiteDatabase, key: string, value: string)
     key,
     value,
   );
+  if (SHARED_SETTINGS.includes(key)) await queueSync(db, 'setting', key);
 }

@@ -1,6 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
+import { subscribeCloudChanges } from '@/cloud/queue';
 
 /**
  * Rulează o interogare când ecranul devine activ (inclusiv la revenirea pe tab),
@@ -33,5 +35,7 @@ export function useDbQuery<T>(query: (db: SQLiteDatabase) => Promise<T>, deps: u
   );
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
+  // Date noi venite de pe alt telefon al familiei → reîncărcăm
+  useEffect(() => subscribeCloudChanges(reload), [reload]);
   return { data, error, reload };
 }

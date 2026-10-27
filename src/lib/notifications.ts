@@ -6,6 +6,7 @@ import { getSetting, setSetting } from '@/db/repo';
 
 import { todayIso } from './format';
 import { loadTasks } from './loadTasks';
+import { DEVICE } from './settingsKeys';
 import { notificationKey } from './tasks';
 
 export const CHANNEL_ID = 'reminders';
@@ -48,6 +49,8 @@ export async function sendDueNotifications(db: SQLiteDatabase, now = new Date())
   if (hour < QUIET_BEFORE || hour >= QUIET_FROM) return 0;
   const perm = await Notifications.getPermissionsAsync();
   if (!perm.granted) return 0;
+  // Fiecare membru al familiei alege dacă primește reminder-e pe telefonul lui
+  if ((await getSetting(db, DEVICE.notifications)) === '0') return 0;
 
   const today = todayIso();
   const tasks = await loadTasks(db);

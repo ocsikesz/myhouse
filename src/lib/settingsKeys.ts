@@ -11,3 +11,21 @@ export const SETTINGS = {
   /** Luna (YYYY-MM) pentru care indexul de apă a fost trimis */
   waterSentMonth: 'water.sent_month',
 } as const;
+
+/** Setări comune familiei — se sincronizează între telefoane. Restul rămân pe telefon. */
+export const SHARED_SETTINGS: readonly string[] = [
+  SETTINGS.waterPhone,
+  SETTINGS.waterIdentification,
+  SETTINGS.waterReminderDay,
+  SETTINGS.waterDeadlineDay,
+  SETTINGS.assocDueDay,
+  SETTINGS.waterSentMonth,
+];
+
+/** Setări doar pentru telefonul ăsta. */
+export const DEVICE = {
+  /** '0' = fără notificări pe telefonul ăsta */
+  notifications: 'device.notifications',
+  /** '0' = telefonul ăsta nu se loghează la E.ON / Electrica (ia datele din cloud) */
+  providerSync: 'device.provider_sync',
+} as const;

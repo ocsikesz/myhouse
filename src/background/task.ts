@@ -2,6 +2,7 @@ import * as BackgroundTask from 'expo-background-task';
 import { openDatabaseAsync } from 'expo-sqlite';
 import * as TaskManager from 'expo-task-manager';
 
+import { cloudSync } from '@/cloud/sync';
 import { DB_NAME, migrateDb } from '@/db/migrations';
 import { setSetting } from '@/db/repo';
 import { sendDueNotifications } from '@/lib/notifications';
@@ -18,6 +19,8 @@ export async function runBackgroundCheck(): Promise<void> {
   const db = await openDatabaseAsync(DB_NAME);
   await migrateDb(db);
   await syncAll(db);
+  // Familie: trimite ce s-a schimbat aici și aduce ce au schimbat ceilalți (inclusiv „trimis”)
+  await cloudSync(db).catch(() => {});
   await sendDueNotifications(db);
   await setSetting(db, LAST_BACKGROUND_RUN, new Date().toISOString());
 }

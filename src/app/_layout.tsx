@@ -5,10 +5,12 @@ import * as Notifications from 'expo-notifications';
 import { router, Stack, type Href } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
+import { useSQLiteContext } from 'expo-sqlite';
 import { Suspense, useEffect, useRef } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 
 import { registerBackgroundTask } from '@/background/task';
+import { cloudSync } from '@/cloud/sync';
 import { DB_NAME, migrateDb } from '@/db/migrations';
 import { configureNotificationHandler, ensureNotificationSetup } from '@/lib/notifications';
 import { useTheme } from '@/lib/theme';
@@ -49,6 +51,19 @@ function NotificationRouter() {
   return null;
 }
 
+/** Sincronizare cu familia la pornire și de fiecare dată când aplicația revine în față. */
+function CloudSyncOnForeground() {
+  const db = useSQLiteContext();
+  useEffect(() => {
+    cloudSync(db).catch(() => {});
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') cloudSync(db).catch(() => {});
+    });
+    return () => sub.remove();
+  }, [db]);
+  return null;
+}
+
 export default function RootLayout() {
   const t = useTheme();
   return (
@@ -56,6 +71,7 @@ export default function RootLayout() {
       <SQLiteProvider databaseName={DB_NAME} onInit={migrateDb} useSuspense>
         <StatusBar style="auto" />
         <NotificationRouter />
+        <CloudSyncOnForeground />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: t.background },
@@ -66,6 +82,7 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="familie" options={{ title: 'Familie și backup' }} />
         </Stack>
       </SQLiteProvider>
     </Suspense>

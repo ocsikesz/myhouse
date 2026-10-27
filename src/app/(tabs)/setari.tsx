@@ -9,6 +9,9 @@ import { DB_NAME, SCHEMA_VERSION } from '@/db/migrations';
 import { getSetting, setSetting } from '@/db/repo';
 import { info } from '@/lib/dialogs';
 import { useDbQuery } from '@/lib/useDbQuery';
+import { formatDateTime } from '@/lib/format';
+import { storedSession } from '@/cloud/client';
+import { CLOUD } from '@/cloud/sync';
 import { getCredentials } from '@/providers/credentials';
 import { SETTINGS } from '@/lib/settingsKeys';
 import { normalizeRoPhone } from '@/lib/whatsapp';
@@ -176,10 +179,37 @@ function Diagnostics() {
   );
 }
 
+function FamilyCard() {
+  const t = useTheme();
+  const { data } = useDbQuery(async (d) => ({
+    session: await storedSession(),
+    lastSync: await getSetting(d, CLOUD.lastSync),
+    error: await getSetting(d, CLOUD.error),
+  }));
+  const subtitle = data?.session
+    ? data.error
+      ? `Eroare: ${data.error}`
+      : `${data.session.email} · ${data.lastSync ? `sincronizat ${formatDateTime(data.lastSync)}` : 'nesincronizat încă'}`
+    : 'Folosiți aplicația toată familia, cu backup în cloud.';
+  return (
+    <Card onPress={() => router.push('/familie')}>
+      <CardHeader
+        icon={data?.session ? 'cloud-check-outline' : 'account-group-outline'}
+        color={data?.session ? (data.error ? t.danger : t.success) : t.accent}
+        title="Familie și backup"
+        subtitle={subtitle}
+        right={<Chevron />}
+      />
+    </Card>
+  );
+}
+
 export default function SettingsScreen() {
   const t = useTheme();
   return (
     <Screen>
+      <FamilyCard />
+
       <SectionTitle>Apă</SectionTitle>
       <WaterSettings />
 

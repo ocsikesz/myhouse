@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 45
     env:
       BUILD_NUMBER: ${{ github.run_number }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
 

@@ -17,6 +17,22 @@ API-urile E.ON și Electrica sunt neoficiale (cele folosite de aplicațiile mobi
 [cnecrea/eonromania](https://github.com/cnecrea/eonromania) și [cnecrea/myelectrica](https://github.com/cnecrea/myelectrica) (MIT).
 Dacă furnizorii le schimbă, integrarea trebuie actualizată.
 
+## Familie și backup (Supabase)
+
+Toată familia folosește același cont (email + parolă). Citirile, pozele, asociația, setările comune și
+conturile E.ON / Electrica (criptate cu parola familiei, AES-256-GCM) se sincronizează prin Supabase.
+Doar un telefon se loghează la furnizori; celelalte primesc facturile, consumul și starea indexului din cloud.
+
+Configurare, o singură dată:
+
+1. [supabase.com](https://supabase.com) → **New project** (planul gratuit e suficient). Regiunea: Frankfurt.
+2. **SQL Editor → New query** → lipește conținutul `supabase/schema.sql` → **Run**.
+3. **Authentication → Users → Add user → Create new user**: emailul și parola familiei, bifat **Auto Confirm User**.
+4. **Project Settings → API**: copiază *Project URL* și cheia *anon public*.
+5. GitHub → repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   `SUPABASE_URL` și `SUPABASE_ANON_KEY`. Apoi rulează din nou workflow-ul (sau fă un push).
+6. Pe fiecare telefon: **Setări → Familie și backup** → conectare cu contul familiei.
+
 ## Structură
 
 ```
@@ -27,6 +43,7 @@ src/
   db/             schema SQLite, migrații (PRAGMA user_version), repository
   providers/      clienți API E.ON / Electrica, credențiale (SecureStore), sincronizare
   background/     task de fundal: sincronizare + notificări
+  cloud/          sincronizare de familie (Supabase REST), criptarea parolelor furnizorilor
   lib/            formatare RO, consum, sarcini/reminder-e, notificări, temă
 tests/            teste pentru logica pură și clienții API (fetch simulat)
 ```
