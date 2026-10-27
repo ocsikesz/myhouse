@@ -17,6 +17,7 @@ import {
 import type { Meter } from '@/db/types';
 import { addMonths, currentMonth, formatDate, formatDateTime, formatLei, formatMonth, formatNumber, todayIso } from '@/lib/format';
 import { loadTasks } from '@/lib/loadTasks';
+import { currentIndex } from '@/lib/meterIndex';
 import { buildStatement, kindConsumption, type ConsumptionRow, type KindConsumption, type StatementLine } from '@/lib/monthSummary';
 import { monthlyConsumption } from '@/lib/stats';
 import type { HomeTask } from '@/lib/tasks';
@@ -170,6 +171,11 @@ export default function HomeScreen() {
       <Badge text="index trimis" color={t.success} />
     ) : null;
 
+  const indexLine = (p: (typeof data.providers)[number]) => {
+    const c = currentIndex(p);
+    return `Index ${c.value !== null ? formatNumber(c.value, 0) : '—'}${c.source === 'trimis' ? ' (trimis)' : ''}`;
+  };
+
   const unpaidLine = (rows: typeof data.providers) => {
     if (rows.length === 0) return [];
     const sum = rows.reduce((s, r) => s + (data.unpaidByMeter[r.meter_id] ?? 0), 0);
@@ -277,7 +283,7 @@ export default function HomeScreen() {
           lines={
             gasMeters.length === 0
               ? ['Cont neconectat']
-              : [...gasMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`), ...unpaidLine(gasMeters)]
+              : [...gasMeters.map((p) => indexLine(p)), ...unpaidLine(gasMeters)]
           }
         />
         <Tile
@@ -292,7 +298,7 @@ export default function HomeScreen() {
           lines={
             elMeters.length === 0
               ? ['Cont neconectat']
-              : [...elMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`), ...unpaidLine(elMeters)]
+              : [...elMeters.map((p) => indexLine(p)), ...unpaidLine(elMeters)]
           }
         />
       </View>

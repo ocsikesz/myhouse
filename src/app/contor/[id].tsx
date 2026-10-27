@@ -28,6 +28,7 @@ import {
   parseDecimal,
   todayIso,
 } from '@/lib/format';
+import { currentIndex } from '@/lib/meterIndex';
 import { expectationFrom } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
@@ -64,6 +65,12 @@ export default function ProviderMeterScreen() {
   const submitted = status?.submitted_index !== null && status?.submitted_index !== undefined;
   const daysLeft = status?.window_end ? daysBetween(today, status.window_end) : null;
   const year = Number(today.slice(0, 4));
+  const cur = currentIndex({
+    last_index: status?.last_index ?? null,
+    last_index_date: status?.last_index_date ?? null,
+    submitted_index: status?.submitted_index ?? null,
+    submitted_at: status?.submitted_at ?? null,
+  });
 
   const comparison = buildYearComparison(
     monthly.map((m) => ({ month: m.month, value: m.consumption })),
@@ -143,9 +150,20 @@ export default function ProviderMeterScreen() {
       <Screen refreshing={busy === 'sync'} onRefresh={onSync}>
         {/* Contorul */}
         <Card style={{ borderTopWidth: 4, borderTopColor: color }}>
-          <Text style={[styles.caption, { color: t.textMuted }]}>Ultimul index facturat</Text>
-          <MeterDrum value={status?.last_index ?? null} unit={meter.unit} />
-          {status?.last_index_type ? <Body muted>{status.last_index_type}</Body> : null}
+          <Text style={[styles.caption, { color: t.textMuted }]}>
+            {cur.source === 'trimis' ? 'Ultimul index (trimis de tine)' : 'Ultimul index facturat'}
+          </Text>
+          <MeterDrum value={cur.value} unit={meter.unit} />
+          {cur.source === 'trimis' ? (
+            <Body muted>
+              Autocitire {cur.date ? `din ${formatDate(cur.date)}` : ''}, încă nefacturată
+              {cur.billed
+                ? ` · ultimul facturat: ${formatNumber(cur.billed.value, 0)}${cur.billed.date ? ` (${formatDate(cur.billed.date)})` : ''}`
+                : ''}
+            </Body>
+          ) : status?.last_index_type ? (
+            <Body muted>{status.last_index_type}</Body>
+          ) : null}
           <Text style={[styles.window, { color: windowColor }]}>{windowText}</Text>
           {status?.address ? <Body muted>{status.address}</Body> : null}
           {status?.error ? <Body color={t.danger}>{status.error}</Body> : null}
@@ -166,7 +184,7 @@ export default function ProviderMeterScreen() {
           <Card style={{ borderColor: submitted ? t.border : t.danger, borderWidth: 1 }}>
             <ScanButton
               prefix={meter.id.replace(/[^a-zA-Z0-9]/g, '_')}
-              expectation={expectationFrom(history, meter.kind === 'electricitate' ? 1 : 3, status?.last_index)}
+              expectation={expectationFrom(history, meter.kind === 'electricitate' ? 1 : 3, cur.value)}
               decimals={0}
               unit={meter.unit}
               onPhoto={setPhoto}
@@ -177,7 +195,7 @@ export default function ProviderMeterScreen() {
               value={value}
               onChangeText={setValue}
               keyboardType="number-pad"
-              placeholder={status?.last_index ? formatNumber(status.last_index, 0) : ''}
+              placeholder={cur.value !== null ? formatNumber(cur.value, 0) : ''}
               hint="Doar cifrele întregi de pe contor."
               large
             />

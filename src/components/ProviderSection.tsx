@@ -4,6 +4,7 @@ import { MeterDrum } from '@/components/MeterDrum';
 import { Badge, Body, Card, CardHeader, Chevron, SectionTitle } from '@/components/ui';
 import type { Meter, ProviderStatus } from '@/db/types';
 import { daysBetween, formatDate, formatLei, todayIso } from '@/lib/format';
+import { currentIndex } from '@/lib/meterIndex';
 import { useTheme } from '@/lib/theme';
 import type { AccountProvider } from '@/providers/sync';
 
@@ -75,7 +76,8 @@ export function ProviderSection({
                 )
               }
             />
-            <MeterDrum value={r.last_index} unit={r.unit} size="small" />
+            <MeterDrum value={currentIndex(r).value} unit={r.unit} size="small" />
+            {currentIndex(r).source === 'trimis' ? <Body muted>Index trimis de tine, încă nefacturat</Body> : null}
             {unpaid[r.meter_id] ? <Body color={t.warning}>De plată: {formatLei(unpaid[r.meter_id])}</Body> : null}
             {r.error ? <Body color={t.danger}>{r.error}</Body> : null}
           </Card>
