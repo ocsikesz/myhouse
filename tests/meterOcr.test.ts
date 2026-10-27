@@ -120,3 +120,15 @@ test('apă: zerourile din față nu depunctează indexul (00123 + tamburi roșii
   const c = findMeterCandidates(input, { previous: 121, typicalDelta: 2, maxDecimals: 3 });
   assert.equal(Math.trunc(c[0].value), 123);
 });
+
+import { mergeCandidates } from '../src/lib/meterOcr';
+
+test('variante din două treceri OCR: valoarea găsită de ambele urcă în față', () => {
+  const merged = mergeCandidates([
+    [{ value: 1914, raw: '1914', score: 50 }, { value: 1087, raw: '1087', score: 45 }],
+    [{ value: 1087, raw: '1087', score: 48 }],
+  ]);
+  assert.equal(merged[0].value, 1087);
+  assert.equal(merged[0].score, 58);
+  assert.equal(merged.length, 2);
+});

@@ -58,3 +58,19 @@ test('date și luni', () => {
   assert.equal(addMonths('2026-10', -12), '2025-10');
   assert.equal(daysBetween('2026-10-26', '2026-11-02'), 7);
 });
+
+import { checkBackdatedReading } from '../src/lib/consumption';
+
+test('citire veche: trebuie să stea între citirea de dinainte și cea de după', () => {
+  const r = [
+    { value: 200, read_at: '2026-08-20' },
+    { value: 210, read_at: '2026-10-20' },
+  ];
+  assert.deepEqual(checkBackdatedReading(205, '2026-09-20', r, '2026-10-27'), { ok: true });
+  assert.equal(checkBackdatedReading(199, '2026-09-20', r, '2026-10-27').ok, false);
+  const big = checkBackdatedReading(215, '2026-09-20', r, '2026-10-27');
+  assert.equal(big.ok === false && big.reason, 'mai_mare');
+  assert.equal(checkBackdatedReading(150, '2026-07-01', r, '2026-10-27').ok, true);
+  const fut = checkBackdatedReading(220, '2026-11-01', r, '2026-10-27');
+  assert.equal(fut.ok === false && fut.reason, 'viitor');
+});

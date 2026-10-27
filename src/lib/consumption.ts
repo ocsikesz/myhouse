@@ -53,3 +53,27 @@ function round(n: number, decimals: number): number {
   const f = 10 ** decimals;
   return Math.round(n * f) / f;
 }
+
+export type BackdatedCheck =
+  | { ok: true }
+  | { ok: false; reason: 'mai_mic'; neighbor: { value: number; date: string } }
+  | { ok: false; reason: 'mai_mare'; neighbor: { value: number; date: string } }
+  | { ok: false; reason: 'viitor' };
+
+/**
+ * O citire adăugată pe o dată din trecut trebuie să stea între vecinii ei:
+ * nu sub citirea de dinainte, nu peste cea de după.
+ */
+export function checkBackdatedReading(
+  value: number,
+  date: string,
+  readings: { value: number; read_at: string }[],
+  today: string,
+): BackdatedCheck {
+  if (date > today) return { ok: false, reason: 'viitor' };
+  const before = readings.filter((r) => r.read_at <= date).sort((a, b) => b.read_at.localeCompare(a.read_at))[0];
+  const after = readings.filter((r) => r.read_at > date).sort((a, b) => a.read_at.localeCompare(b.read_at))[0];
+  if (before && value < before.value) return { ok: false, reason: 'mai_mic', neighbor: { value: before.value, date: before.read_at } };
+  if (after && value > after.value) return { ok: false, reason: 'mai_mare', neighbor: { value: after.value, date: after.read_at } };
+  return { ok: true };
+}

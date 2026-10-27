@@ -29,6 +29,7 @@ import {
   todayIso,
 } from '@/lib/format';
 import { currentIndex } from '@/lib/meterIndex';
+import { copyToGallery } from '@/lib/photos';
 import { expectationFrom } from '@/lib/scanMeter';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
@@ -124,6 +125,7 @@ export default function ProviderMeterScreen() {
     const r = await submitProviderIndex(db, meter!.id, v, photo);
     setBusy(null);
     if (r.ok) {
+      await copyToGallery(db, photo, meter!.name, today);
       setValue('');
       setPhoto(null);
       info('Index trimis', 'Furnizorul a primit indexul.');

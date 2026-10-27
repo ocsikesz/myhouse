@@ -213,3 +213,24 @@ export function findMeterCandidates(input: OcrInput, exp: MeterExpectation, limi
 
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, limit);
 }
+
+/**
+ * Unește variantele din mai multe treceri OCR: aceeași valoare găsită de ambele
+ * treceri primește un bonus (e mai probabil să fie corectă).
+ */
+export function mergeCandidates(lists: Candidate[][]): Candidate[] {
+  const byValue = new Map<number, Candidate & { hits: number }>();
+  for (const list of lists) {
+    const seen = new Set<number>();
+    for (const c of list) {
+      if (seen.has(c.value)) continue;
+      seen.add(c.value);
+      const prev = byValue.get(c.value);
+      if (!prev) byValue.set(c.value, { ...c, hits: 1 });
+      else byValue.set(c.value, { ...prev, score: Math.max(prev.score, c.score), hits: prev.hits + 1 });
+    }
+  }
+  return [...byValue.values()]
+    .map(({ hits, ...c }) => ({ ...c, score: c.score + (hits > 1 ? 10 : 0) }))
+    .sort((a, b) => b.score - a.score);
+}

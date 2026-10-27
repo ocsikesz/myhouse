@@ -3,9 +3,10 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { isNativeAvailable, isWhatsAppInstalled, shareToWhatsApp } from 'casamea-native';
+import { combineImages, isNativeAvailable, isWhatsAppInstalled, shareToWhatsApp } from 'casamea-native';
 
 import { MeterDrum } from '@/components/MeterDrum';
+import { OldReadingSheet } from '@/components/OldReadingSheet';
 import { ReadingSheet } from '@/components/ReadingSheet';
 import { ScanButton } from '@/components/ScanButton';
 import { Badge, Body, Button, Card, CardHeader, Field, Icon, Screen, SectionTitle, type IconName } from '@/components/ui';
@@ -14,7 +15,7 @@ import type { Meter, Reading } from '@/db/types';
 import { checkNewReading, withConsumption } from '@/lib/consumption';
 import { confirm, info } from '@/lib/dialogs';
 import { currentMonth, formatDate, formatNumber, parseDecimal, todayIso } from '@/lib/format';
-import { deletePhoto } from '@/lib/photos';
+import { copyToGallery, deletePhoto } from '@/lib/photos';
 import { expectationFrom } from '@/lib/scanMeter';
 import { SETTINGS } from '@/lib/settingsKeys';
 import { useTheme } from '@/lib/theme';
@@ -54,6 +55,8 @@ export default function WaterScreen() {
   const [saveCount, setSaveCount] = useState(0);
   /** Citirea deschisă în foaia de detalii */
   const [selected, setSelected] = useState<Reading | null>(null);
+  /** Foaia „Adaugă o citire mai veche” */
+  const [oldOpen, setOldOpen] = useState(false);
 
   const { data, reload } = useDbQuery<WaterData>(async (d) => {
     const meters = (await listMeters(d)).filter((m) => m.kind === 'apa');
@@ -138,6 +141,8 @@ export default function WaterScreen() {
           });
         }
       });
+      // Copie în Galerie, albumul Indexa
+      for (const { meter } of toSave) await copyToGallery(db, photos[meter.id] ?? null, shortLabel(meter), date);
       setValues({});
       setPhotos({});
       setJustSaved(saved);
@@ -169,8 +174,23 @@ export default function WaterScreen() {
       return { label: shortLabel(m), value: r.value, previous: before ? before.value : null, unit: m.unit };
     });
     const message = buildWaterMessage(data.identification, readings[0].read_at, lines);
-    // Cu poze: le atașăm direct în conversație; fără poze, linkul wa.me e suficient
-    const photoUris = readings.map((r) => r.photo_uri).filter((u): u is string => !!u);
+    // Cu poze: le atașăm direct în conversație; fără poze, linkul wa.me e suficient.
+    // WhatsApp trimite fiecare poză ca mesaj separat, așa că mai multe poze le lipim
+    // într-o singură imagine (cu eticheta fiecărui contor) → un singur mesaj.
+    const withPhoto = readings.filter((r) => !!r.photo_uri);
+    let photoUris = withPhoto.map((r) => r.photo_uri!);
+    if (photoUris.length > 1 && isNativeAvailable()) {
+      try {
+        const labels = withPhoto.map((r) => {
+          const m = data.meters.find((x) => x.id === r.meter_id)!;
+          return `${shortLabel(m)}: ${wholeIndex(r.value)} ${m.unit}`;
+        });
+        const combined = await combineImages(photoUris, labels);
+        if (combined) photoUris = [combined];
+      } catch {
+        // rămân pozele separate
+      }
+    }
     const opened =
       photoUris.length > 0 && isNativeAvailable() && isWhatsAppInstalled()
         ? shareToWhatsApp(phone, message, photoUris)
@@ -238,7 +258,7 @@ export default function WaterScreen() {
               icon="whatsapp"
               color={t.whatsapp}
               title="Gata de trimis"
-              subtitle={pending.some((r) => r.photo_uri) ? 'Pozele se trimit împreună cu mesajul.' : 'Mesaj către reprezentantul firmei de apă.'}
+              subtitle={pending.some((r) => r.photo_uri) ? 'Pozele pleacă lipite într-o singură imagine, în același mesaj.' : 'Mesaj către reprezentantul firmei de apă.'}
             />
             <View style={styles.pendingRow}>
               {pending.map((r) => {
@@ -310,7 +330,27 @@ export default function WaterScreen() {
             </View>
           );
         })}
+        <Button
+          title="Adaugă o citire mai veche"
+          icon="history"
+          variant="secondary"
+          onPress={() => setOldOpen(true)}
+        />
+        <Text style={[styles.meta, styles.tip, { color: t.textMuted }]}>
+          Pentru lunile trecute (din poze sau de pe hârtie). Cu istoric, aplicația citește mai sigur cifrele de pe contor.
+        </Text>
       </Screen>
+
+      <OldReadingSheet
+        visible={oldOpen}
+        meters={data.meters}
+        labelOf={shortLabel}
+        onClose={() => setOldOpen(false)}
+        onSaved={() => {
+          setJustSaved(null);
+          reload();
+        }}
+      />
 
       <ReadingSheet
         reading={selected}

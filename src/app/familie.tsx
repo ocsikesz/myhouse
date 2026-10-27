@@ -28,6 +28,7 @@ export default function FamilyScreen() {
     pending: (await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0,
     notifications: (await getSetting(d, DEVICE.notifications)) !== '0',
     providerSync: (await getSetting(d, DEVICE.providerSync)) !== '0',
+    saveToGallery: (await getSetting(d, DEVICE.saveToGallery)) !== '0',
   }));
 
   async function onConnect() {
@@ -151,6 +152,13 @@ export default function FamilyScreen() {
           hint="Reminder-e pentru autocitire, apă, facturi și asociație."
           value={data?.notifications ?? true}
           onChange={(v) => toggle(DEVICE.notifications, v)}
+        />
+        <View style={[styles.sep, { backgroundColor: t.border }]} />
+        <ToggleRow
+          title="Pozele în Galerie"
+          hint="Pozele contoarelor salvate cu o citire se copiază și în Galerie, albumul Indexa."
+          value={data?.saveToGallery ?? true}
+          onChange={(v) => toggle(DEVICE.saveToGallery, v)}
         />
         <View style={[styles.sep, { backgroundColor: t.border }]} />
         <ToggleRow

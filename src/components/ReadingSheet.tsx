@@ -7,7 +7,7 @@ import { deleteReading, setReadingPhoto } from '@/db/repo';
 import type { Reading } from '@/db/types';
 import { confirm } from '@/lib/dialogs';
 import { formatDate } from '@/lib/format';
-import { deletePhoto, pickMeterPhoto, takeMeterPhoto } from '@/lib/photos';
+import { copyToGallery, deletePhoto, pickMeterPhoto, takeMeterPhoto } from '@/lib/photos';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -50,6 +50,7 @@ export function ReadingSheet({
       const uri = source === 'galerie' ? await pickMeterPhoto(photoPrefix) : await takeMeterPhoto(photoPrefix);
       if (!uri) return;
       await setReadingPhoto(db, reading.id, uri);
+      await copyToGallery(db, uri, label, reading.read_at);
       if (current && current !== uri) deletePhoto(current);
       setPhoto(uri);
       onChanged();

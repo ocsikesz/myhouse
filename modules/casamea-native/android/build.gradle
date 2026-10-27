@@ -18,4 +18,6 @@ dependencies {
   // ML Kit cu modelul inclus în APK: merge offline, fără descărcare la prima folosire
   implementation 'com.google.mlkit:text-recognition:16.0.1'
   implementation 'androidx.core:core:1.13.1'
+  // Orientarea pozelor (EXIF) când le lipim / le îmbunătățim pentru OCR
+  implementation 'androidx.exifinterface:exifinterface:1.3.7'
 }

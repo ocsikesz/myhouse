@@ -28,4 +28,6 @@ export const DEVICE = {
   notifications: 'device.notifications',
   /** '0' = telefonul ăsta nu se loghează la E.ON / Electrica (ia datele din cloud) */
   providerSync: 'device.provider_sync',
+  /** '0' = nu copia pozele contoarelor în Galerie (albumul Indexa) */
+  saveToGallery: 'device.save_gallery',
 } as const;
