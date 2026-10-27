@@ -1,7 +1,7 @@
 #!/bin/bash
 # Instalează APK-ul pe emulator, îl pornește și salvează logcat-ul.
 # Folosire: smoke-test.sh <apk> <director-ieșire>
-APK="$1"; OUT="$2"; PKG=ro.ocsikesz.indexa
+APK="$1"; OUT="$2"; PKG=ro.ocsike.indexa
 mkdir -p "$OUT"
 adb install -r "$APK" > "$OUT/install.txt" 2>&1
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS || true
