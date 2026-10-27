@@ -85,6 +85,11 @@ export default function FamilyScreen() {
   async function toggle(key: string, on: boolean) {
     await setSetting(db, key, on ? '1' : '0');
     reload();
+    // Comutatorul de furnizori oprit → aducem imediat datele E.ON / Electrica din cloud
+    if (key === DEVICE.providerSync && !on && data?.session) {
+      await cloudSync(db);
+      reload();
+    }
   }
 
   const session = data?.session ?? null;

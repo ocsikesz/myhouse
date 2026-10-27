@@ -13,6 +13,7 @@ import {
   activeSession,
   CloudError,
   familyKey,
+  fetchRecord,
   fetchRecordsSince,
   storageHeaders,
   storageUrl,
@@ -30,6 +31,8 @@ export const CLOUD = {
   error: 'cloud.error',
   /** Valoarea LAST_SYNC (furnizori) pentru care am trimis deja instantaneul */
   snapshotOf: 'cloud.snapshot_of',
+  /** server_ts al instantaneului furnizorilor aplicat deja pe telefonul ăsta */
+  snapshotApplied: 'cloud.snapshot_applied',
 } as const;
 
 /** Aceeași cheie ca în providers/sync.ts (nu importăm modulul, ca să evităm cicluri) */
@@ -71,7 +74,8 @@ async function run(db: SQLiteDatabase): Promise<CloudSyncResult> {
   try {
     await queueProviderSnapshotIfNew(db);
     const pushed = await push(db, session);
-    const pulled = await pull(db, session);
+    let pulled = await pull(db, session);
+    if (await pullProviderSnapshot(db, session)) pulled++;
     await setSetting(db, CLOUD.lastSync, new Date().toISOString());
     await setSetting(db, CLOUD.error, '');
     if (pulled > 0) emitCloudChanges();
@@ -173,8 +177,9 @@ async function pull(db: SQLiteDatabase, s: Session): Promise<number> {
   for (;;) {
     const batch = await fetchRecordsSince(s, cursor);
     if (batch.length === 0) break;
-    // Instantaneul furnizorilor primul: aduce contoarele de care depind citirile
-    const ordered = [...batch.filter((r) => r.kind === 'provider'), ...batch.filter((r) => r.kind !== 'provider')];
+    // Conturile primele: decid dacă telefonul ia datele furnizorilor din cloud.
+    // Instantaneul furnizorilor se aduce separat (pullProviderSnapshot), nu din fluxul ăsta.
+    const ordered = [...batch.filter((r) => r.kind === 'credentials'), ...batch.filter((r) => r.kind !== 'credentials' && r.kind !== 'provider')];
     for (const rec of ordered) {
       const pending = await db.getFirstAsync('SELECT 1 FROM sync_outbox WHERE kind = ? AND uid = ?', rec.kind, rec.uid);
       // Modificarea locală netrimisă câștigă; pleacă la următoarea trimitere
@@ -240,11 +245,6 @@ async function applyRecord(db: SQLiteDatabase, s: Session, rec: CloudRecord): Pr
       await saveCredentials(provider, creds);
       // Telefon nou al familiei: ia datele furnizorilor din cloud, nu se loghează singur (evită 2FA)
       if (!had && (await getSetting(db, DEVICE.providerSync)) === null) await setSetting(db, DEVICE.providerSync, '0');
-      return true;
-    }
-    case 'provider': {
-      if ((await getSetting(db, DEVICE.providerSync)) !== '0') return false;
-      await applyProviderSnapshot(db, rec.data as ProviderSnapshot);
       return true;
     }
     default:
@@ -335,6 +335,21 @@ async function applyReading(db: SQLiteDatabase, s: Session, rec: CloudRecord): P
       rec.uid,
     );
   }
+  return true;
+}
+
+/**
+ * Telefoanele care nu vorbesc cu furnizorii iau datele E.ON / Electrica din
+ * cloud: la fiecare sincronizare verificăm dacă instantaneul e mai nou decât
+ * cel aplicat. Merge și după ce comutatorul a fost oprit mai târziu.
+ */
+async function pullProviderSnapshot(db: SQLiteDatabase, s: Session): Promise<boolean> {
+  if ((await getSetting(db, DEVICE.providerSync)) !== '0') return false;
+  const rec = await fetchRecord(s, 'provider', 'snapshot');
+  if (!rec || rec.deleted || !rec.data || !rec.server_ts) return false;
+  if ((await getSetting(db, CLOUD.snapshotApplied)) === rec.server_ts) return false;
+  await applyProviderSnapshot(db, rec.data as ProviderSnapshot);
+  await setSetting(db, CLOUD.snapshotApplied, rec.server_ts);
   return true;
 }
 
@@ -470,6 +485,7 @@ export async function queueEverything(db: SQLiteDatabase): Promise<void> {
   }
   // Instantaneul furnizorilor pleacă la prima sincronizare
   await setSetting(db, CLOUD.snapshotOf, '');
+  await setSetting(db, CLOUD.snapshotApplied, '');
 }
 
 /** Deconectare: cloud-ul rămâne neatins; telefonul începe de la zero la reconectare. */
@@ -479,4 +495,5 @@ export async function resetCloudState(db: SQLiteDatabase): Promise<void> {
   await setSetting(db, CLOUD.lastSync, '');
   await setSetting(db, CLOUD.error, '');
   await setSetting(db, CLOUD.snapshotOf, '');
+  await setSetting(db, CLOUD.snapshotApplied, '');
 }

@@ -172,6 +172,18 @@ export async function fetchRecordsSince(s: Session, since: string | null, limit 
   return (await res.json()) as CloudRecord[];
 }
 
+/** O singură înregistrare (ex. instantaneul furnizorilor); null dacă nu există. */
+export async function fetchRecord(s: Session, kind: string, uid: string): Promise<CloudRecord | null> {
+  const cfg = cloudConfig()!;
+  const res = await fetch(
+    `${cfg.url}/rest/v1/records?select=kind,uid,data,deleted,server_ts&kind=eq.${encodeURIComponent(kind)}&uid=eq.${encodeURIComponent(uid)}`,
+    { headers: headers(cfg, s) },
+  );
+  await checked(res, 'Citirea din cloud a eșuat');
+  const rows = (await res.json()) as CloudRecord[];
+  return rows[0] ?? null;
+}
+
 export function storageUrl(path: string, authenticated = false): string {
   const cfg = cloudConfig()!;
   return `${cfg.url}/storage/v1/object/${authenticated ? 'authenticated/' : ''}photos/${path}`;
