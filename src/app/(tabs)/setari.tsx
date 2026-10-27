@@ -230,7 +230,7 @@ export default function SettingsScreen() {
 
       <SectionTitle>Despre</SectionTitle>
       <Card>
-        <CardHeader icon="home-heart" color={t.accent} title="CasaMea" />
+        <CardHeader icon="home-heart" color={t.accent} title="Indexa" />
         <Body muted>
           Versiune {Constants.expoConfig?.version ?? '?'} (build {Constants.expoConfig?.android?.versionCode ?? '?'})
         </Body>

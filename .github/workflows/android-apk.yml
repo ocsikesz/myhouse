@@ -87,23 +87,23 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/release/app-release.apk "out/CasaMea-${BUILD_NUMBER}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "out/Indexa-${BUILD_NUMBER}.apk"
 
       - name: Upload APK for smoke test
         uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: out/CasaMea-${{ github.run_number }}.apk
+          path: out/Indexa-${{ github.run_number }}.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: CasaMea build ${{ github.run_number }}
+          name: Indexa build ${{ github.run_number }}
           body: |
             Commit: ${{ github.sha }}
             ${{ github.event.head_commit.message }}
-          files: out/CasaMea-${{ github.run_number }}.apk
+          files: out/Indexa-${{ github.run_number }}.apk
           make_latest: true
 
   # Pornește APK-ul pe un emulator Android și salvează logcat-ul pe branch-ul
@@ -139,7 +139,7 @@ jobs:
         if: always()
         run: |
           [ -d smoke ] || exit 0
-          git config user.name "casamea-ci"
+          git config user.name "indexa-ci"
           git config user.email "ci@users.noreply.github.com"
           mkdir -p /tmp/diag && cp -r smoke/* /tmp/diag/
           git fetch origin diagnostics || true

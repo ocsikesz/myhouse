@@ -31,7 +31,7 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: t.background },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'CasaMea', tabBarLabel: 'Acasă', tabBarIcon: icon('home', 'home-outline') }} />
+      <Tabs.Screen name="index" options={{ title: 'Indexa', tabBarLabel: 'Acasă', tabBarIcon: icon('home', 'home-outline') }} />
       <Tabs.Screen name="utilitati" options={{ title: 'Utilități', tabBarIcon: icon('gauge', 'gauge-low') }} />
       <Tabs.Screen name="istoric" options={{ title: 'Istoric', tabBarIcon: icon('chart-box', 'chart-box-outline') }} />
       <Tabs.Screen name="setari" options={{ title: 'Setări', tabBarIcon: icon('cog', 'cog-outline') }} />

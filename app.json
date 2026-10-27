@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "CasaMea",
-    "slug": "casamea",
+    "name": "Indexa",
+    "slug": "indexa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,7 +17,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "ro.ocsikesz.casamea",
+      "package": "ro.ocsikesz.indexa",
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -34,7 +34,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "CasaMea folosește camera ca să fotografiezi contoarele.",
+          "cameraPermission": "Indexa folosește camera ca să fotografiezi contoarele.",
           "photosPermission": false,
           "microphonePermission": false
         }
@@ -42,7 +42,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "CasaMea folosește camera ca să fotografiezi contoarele.",
+          "cameraPermission": "Indexa folosește camera ca să fotografiezi contoarele.",
           "microphonePermission": false,
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": false
@@ -57,7 +57,7 @@
       "expo-background-task",
       "expo-secure-store"
     ],
-    "scheme": "casamea",
+    "scheme": "indexa",
     "experiments": {
       "typedRoutes": true
     }

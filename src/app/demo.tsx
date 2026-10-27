@@ -17,7 +17,7 @@ import { addMonths, currentMonth, todayIso } from '@/lib/format';
 import { findMeterCandidates } from '@/lib/meterOcr';
 
 /**
- * Date de probă pentru capturile de ecran din testul automat (casamea://demo).
+ * Date de probă pentru capturile de ecran din testul automat (indexa://demo).
  * Contorul demo are id-ul eon:DEMO; nu e legat de niciun cont real.
  */
 const DEMO_ID = 'eon:DEMO';

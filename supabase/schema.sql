@@ -1,4 +1,4 @@
--- CasaMea — sincronizare de familie.
+-- Indexa — sincronizare de familie.
 -- Rulează o singură dată în Supabase: Dashboard → SQL Editor → New query → lipește tot → Run.
 -- Toată familia folosește același cont (email + parolă), deci fiecare rând aparține acelui cont.
 
