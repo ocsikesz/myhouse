@@ -18,6 +18,7 @@ function WaterSettings() {
   const [phone, setPhone] = useState('');
   const [identification, setIdentification] = useState('');
   const [day, setDay] = useState('');
+  const [deadline, setDeadline] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -25,6 +26,7 @@ function WaterSettings() {
       setPhone((await getSetting(db, SETTINGS.waterPhone)) ?? '');
       setIdentification((await getSetting(db, SETTINGS.waterIdentification)) ?? '');
       setDay((await getSetting(db, SETTINGS.waterReminderDay)) ?? '20');
+      setDeadline((await getSetting(db, SETTINGS.waterDeadlineDay)) ?? '');
     })();
   }, [db]);
 
@@ -38,7 +40,13 @@ function WaterSettings() {
       info('Zi invalidă', 'Ziua reminder-ului trebuie să fie între 1 și 28.');
       return;
     }
+    const dl = deadline.trim() ? Number(deadline) : null;
+    if (dl !== null && (!Number.isInteger(dl) || dl < 1 || dl > 31)) {
+      info('Termen invalid', 'Termenul trebuie să fie o zi între 1 și 31, sau gol dacă nu ai termen.');
+      return;
+    }
     setSaving(true);
+    await setSetting(db, SETTINGS.waterDeadlineDay, dl === null ? '' : String(dl));
     await setSetting(db, SETTINGS.waterPhone, phone.trim());
     await setSetting(db, SETTINGS.waterIdentification, identification.trim());
     await setSetting(db, SETTINGS.waterReminderDay, String(d));
@@ -71,6 +79,52 @@ function WaterSettings() {
         onChangeText={setDay}
         keyboardType="number-pad"
         hint="Din ziua asta a lunii primești reminder zilnic până dai indexul la apă."
+      />
+      <Field
+        label="Termen limită (ziua din lună)"
+        value={deadline}
+        onChangeText={setDeadline}
+        keyboardType="number-pad"
+        placeholder="ex: 25"
+        hint="Până în ziua asta trebuie trimis indexul. În ultimele zile reminder-ul devine urgent și continuă zilnic până apare trimis."
+      />
+      <Button title="Salvează" icon="content-save-outline" onPress={onSave} loading={saving} />
+    </Card>
+  );
+}
+
+function AssociationSettings() {
+  const db = useSQLiteContext();
+  const t = useTheme();
+  const [day, setDay] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => setDay((await getSetting(db, SETTINGS.assocDueDay)) ?? ''))();
+  }, [db]);
+
+  async function onSave() {
+    const d = day.trim() ? Number(day) : null;
+    if (d !== null && (!Number.isInteger(d) || d < 1 || d > 31)) {
+      info('Zi invalidă', 'Scadența trebuie să fie o zi între 1 și 31, sau gol.');
+      return;
+    }
+    setSaving(true);
+    await setSetting(db, SETTINGS.assocDueDay, d === null ? '' : String(d));
+    setSaving(false);
+    info('Salvat', 'Scadența implicită pentru asociație a fost salvată.');
+  }
+
+  return (
+    <Card>
+      <CardHeader icon="office-building-outline" color={t.association} title="Asociația (consum)" subtitle="Termenul de plată din fiecare lună." />
+      <Field
+        label="Scadență implicită (ziua din lună)"
+        value={day}
+        onChangeText={setDay}
+        keyboardType="number-pad"
+        placeholder="ex: 25"
+        hint="Se folosește la fiecare lună care nu are scadență proprie. Cu 3 zile înainte primești reminder zilnic până marchezi plătit."
       />
       <Button title="Salvează" icon="content-save-outline" onPress={onSave} loading={saving} />
     </Card>
@@ -128,6 +182,9 @@ export default function SettingsScreen() {
     <Screen>
       <SectionTitle>Apă</SectionTitle>
       <WaterSettings />
+
+      <SectionTitle>Asociație</SectionTitle>
+      <AssociationSettings />
 
       <SectionTitle>Conturi furnizori</SectionTitle>
       <Accounts />

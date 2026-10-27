@@ -10,13 +10,15 @@ import {
   listMeters,
   listProviderInvoices,
   listProviderMonthly,
+  listProviderPayments,
   listProviderStatuses,
   listReadings,
+  listUnpaidInvoices,
 } from '@/db/repo';
 import type { Meter } from '@/db/types';
 import { addMonths, currentMonth, formatDate, formatDateTime, formatLei, formatMonth, formatNumber, todayIso } from '@/lib/format';
 import { loadTasks } from '@/lib/loadTasks';
-import { kindConsumption, monthCost, type ConsumptionRow, type KindConsumption } from '@/lib/monthSummary';
+import { kindConsumption, monthCost, monthPaid, type ConsumptionRow, type KindConsumption } from '@/lib/monthSummary';
 import { monthlyConsumption } from '@/lib/stats';
 import type { HomeTask } from '@/lib/tasks';
 import { useTheme, type Theme } from '@/lib/theme';
@@ -92,7 +94,19 @@ export default function HomeScreen() {
         ),
       )
     ).flat();
+    // Plățile din ultimele luni: ne spun dacă furnizorul raportează plăți
+    const payments = (
+      await Promise.all(
+        providerMeters.map(async (m) =>
+          (await listProviderPayments(d, m.id, `${addMonths(month, -3)}-01`)).map((p) => ({ ...p, provider: m.provider })),
+        ),
+      )
+    ).flat();
     const payment = (await listAssociationPayments(d, 3)).find((p) => p.month === month) ?? null;
+    const unpaidByMeter = (await listUnpaidInvoices(d)).reduce<Record<string, number>>((acc, i) => {
+      acc[i.meter_id] = (acc[i.meter_id] ?? 0) + i.unpaid;
+      return acc;
+    }, {});
 
     const water = await Promise.all(ofKind('apa').map(async (m) => ({ meter: m, last: (await listReadings(d, m.id, 1))[0] ?? null })));
 
@@ -102,6 +116,8 @@ export default function HomeScreen() {
       electricity: await consumption('electricitate'),
       waterUse: await consumption('apa'),
       cost: monthCost(invoices, payment?.amount ?? null, month),
+      paid: monthPaid(payments, invoices, payment, month),
+      unpaidByMeter,
       water,
       providers: await listProviderStatuses(d),
       payment,
@@ -153,6 +169,12 @@ export default function HomeScreen() {
       <Badge text="index trimis" color={t.success} />
     ) : null;
 
+  const unpaidLine = (rows: typeof data.providers) => {
+    if (rows.length === 0) return [];
+    const sum = rows.reduce((s, r) => s + (data.unpaidByMeter[r.meter_id] ?? 0), 0);
+    return [sum > 0.009 ? `De plată ${formatLei(sum)}` : 'Facturi achitate'];
+  };
+
   const waterThisMonth = data.water.filter((w) => w.last?.read_at.startsWith(month));
   const waterBadge =
     waterThisMonth.length === 0 ? null : waterThisMonth.every((w) => w.last?.sent_at) ? (
@@ -187,14 +209,29 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View>
-          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>Cost {formatMonth(month)}</Text>
-          <Text style={[styles.heroTotal, { color: t.heroText }]}>{formatLei(cost.total)}</Text>
+        <View style={{ gap: 4 }}>
+          <Text style={[styles.heroLabel, { color: t.heroMuted }]}>{formatMonth(month)}</Text>
+          <View style={styles.money}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.heroSmall, { color: t.heroMuted }]}>De plătit (facturat)</Text>
+              <Text style={[styles.heroTotal, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
+                {formatLei(cost.total)}
+              </Text>
+            </View>
+            <View style={[styles.moneySep, { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.heroSmall, { color: t.heroMuted }]}>Plătit</Text>
+              <Text style={[styles.heroTotal, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
+                {formatLei(data.paid)}
+              </Text>
+            </View>
+          </View>
           <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
             {costParts.length ? costParts.join(' · ') : 'Nicio factură și nicio sumă la asociație luna asta, încă.'}
           </Text>
         </View>
 
+        <Text style={[styles.heroLabel, { color: t.heroMuted, marginBottom: -8 }]}>Consumat</Text>
         <View style={styles.pills}>
           <Pill icon="fire" label="Gaz" value={gas.value} unit="m³" note={gas.note} />
           <Pill icon="water-outline" label="Apă" value={wat.value} unit="m³" note={wat.note} />
@@ -231,7 +268,7 @@ export default function HomeScreen() {
           lines={
             gasMeters.length === 0
               ? ['Cont neconectat']
-              : gasMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`)
+              : [...gasMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`), ...unpaidLine(gasMeters)]
           }
         />
         <Tile
@@ -246,7 +283,7 @@ export default function HomeScreen() {
           lines={
             elMeters.length === 0
               ? ['Cont neconectat']
-              : elMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`)
+              : [...elMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`), ...unpaidLine(elMeters)]
           }
         />
       </View>
@@ -361,7 +398,10 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroGreeting: { fontSize: 22, fontWeight: '800' },
   heroSmall: { fontSize: 13 },
-  heroTotal: { fontSize: 34, fontWeight: '800', fontVariant: ['tabular-nums'], marginVertical: 2 },
+  heroTotal: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'], marginVertical: 2 },
+  heroLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  money: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  moneySep: { width: 1, alignSelf: 'stretch' },
   heroIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', gap: 8 },
   pill: { flex: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, gap: 2 },

@@ -52,3 +52,29 @@ export function monthCost(
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * Cât s-a plătit în lună: plățile la E.ON / Electrica făcute în luna respectivă
+ * (dacă furnizorul nu dă plăți, facturile din lună marcate plătite) plus
+ * asociația, dacă a fost marcată plătită în luna aceea.
+ */
+export function monthPaid(
+  payments: { provider: string; paid_on: string; amount: number }[],
+  invoices: { provider: string; issue_date: string | null; due_date: string | null; amount: number; paid: number | boolean }[],
+  association: { amount: number; paid_at: string | null } | null,
+  month: string,
+): number {
+  let total = 0;
+  for (const provider of new Set([...payments, ...invoices].map((x) => x.provider))) {
+    const p = payments.filter((x) => x.provider === provider);
+    if (p.length > 0) {
+      total += p.filter((x) => x.paid_on.startsWith(month)).reduce((s, x) => s + x.amount, 0);
+    } else {
+      total += invoices
+        .filter((i) => i.provider === provider && i.paid && (i.issue_date ?? i.due_date ?? '').startsWith(month))
+        .reduce((s, i) => s + i.amount, 0);
+    }
+  }
+  if (association?.paid_at?.startsWith(month)) total += association.amount;
+  return round2(total);
+}

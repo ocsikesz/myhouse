@@ -21,7 +21,13 @@ export interface TaskInput {
   providers: ProviderInput[];
   /** Furnizori cu eroare de autentificare */
   authErrors: { provider: 'eon' | 'electrica'; message: string }[];
-  water: { reminderDay: number; sentThisMonth: boolean; hasMeters: boolean };
+  water: {
+    reminderDay: number;
+    /** Ziua din lună până la care trebuie dat indexul (setată de utilizator); null = fără termen */
+    deadlineDay?: number | null;
+    sentThisMonth: boolean;
+    hasMeters: boolean;
+  };
   association: { month: string; amount: number; dueDate: string | null; paid: boolean } | null;
   /** Facturi E.ON / Electrica neplătite */
   invoices?: { meterId: string; name: string; number: string; unpaid: number; dueDate: string | null }[];
@@ -62,27 +68,41 @@ export function computeTasks(input: TaskInput): HomeTask[] {
     const until = p.windowEnd ? ` până pe ${formatDate(p.windowEnd)}` : '';
     const prev = p.lastIndex !== null ? ` Ultimul index facturat: ${formatNumber(p.lastIndex, 0)} ${p.unit}.` : '';
     tasks.push({
-      // Notificare la deschiderea ferestrei și încă una în ultima zi
-      key: `index.${p.meterId}.${p.windowStart ?? 'x'}.${last ? 'last' : 'open'}`,
+      // Notificare zilnică cât timp fereastra e deschisă și indexul nu apare trimis
+      key: `index.${p.meterId}.${p.windowStart ?? 'x'}`,
       title: last
         ? `${daysLeft! <= 0 ? 'Azi e ultima zi' : 'Mâine e ultima zi'}: index ${p.name}`
         : `Trimite indexul ${p.name}`,
       body: `Perioada de autocitire e deschisă${until}.${prev}`,
       url: `/contor/${encodeURIComponent(p.meterId)}`,
       urgency: last ? 'urgent' : 'normal',
-      notify: 'once',
+      notify: 'daily',
     });
   }
 
   if (input.water.hasMeters && !input.water.sentThisMonth) {
     const day = Number(today.slice(8, 10));
-    if (day >= input.water.reminderDay) {
+    const deadlineDay = input.water.deadlineDay ?? null;
+    const lastDay = daysInMonth(today);
+    // Termenul nu poate trece de sfârșitul lunii (ex. 31 în noiembrie → 30)
+    const deadline = deadlineDay !== null ? `${today.slice(0, 8)}${String(Math.min(deadlineDay, lastDay)).padStart(2, '0')}` : null;
+    const daysLeft = deadline ? daysBetween(today, deadline) : null;
+    const start = deadlineDay !== null ? Math.min(input.water.reminderDay, deadlineDay) : input.water.reminderDay;
+    if (day >= start) {
+      const urgent = daysLeft !== null && daysLeft <= 1;
       tasks.push({
         key: `water.${today.slice(0, 7)}`,
-        title: 'Dă indexul la apă',
-        body: 'Citește contoarele de la bucătărie și baie și trimite-le pe WhatsApp.',
+        title:
+          daysLeft === null || daysLeft > 1
+            ? 'Dă indexul la apă'
+            : daysLeft === 1
+              ? 'Mâine e termenul: indexul la apă'
+              : daysLeft === 0
+                ? 'Azi e termenul: indexul la apă'
+                : 'Termenul pentru apă a trecut',
+        body: `Citește contoarele de la bucătărie și baie și trimite-le pe WhatsApp.${deadline ? ` Termen: ${formatDate(deadline)}.` : ''}`,
         url: '/apa',
-        urgency: 'normal',
+        urgency: urgent ? 'urgent' : 'normal',
         notify: 'daily',
       });
     }
@@ -132,6 +152,11 @@ export function computeTasks(input: TaskInput): HomeTask[] {
   }
 
   return tasks.sort((x, y) => (x.urgency === y.urgency ? 0 : x.urgency === 'urgent' ? -1 : 1));
+}
+
+function daysInMonth(isoDate: string): number {
+  const [y, m] = isoDate.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
 }
 
 /** Cheia sub care ținem minte că notificarea a fost trimisă. */

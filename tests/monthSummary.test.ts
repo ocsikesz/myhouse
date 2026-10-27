@@ -38,3 +38,23 @@ test('costul lunii: facturile emise în lună + asociația', () => {
   );
   assert.deepEqual(c, { total: 722.89, eon: 210.4, electrica: 99.99, association: 412.5 });
 });
+
+import { monthPaid } from '../src/lib/monthSummary';
+
+test('plătit în lună: plăți furnizor, sau facturi plătite când nu există plăți, plus asociația', () => {
+  const paid = monthPaid(
+    [
+      { provider: 'eon', paid_on: '2026-10-12', amount: 210.4 },
+      { provider: 'eon', paid_on: '2026-09-12', amount: 180 },
+    ],
+    [
+      { provider: 'eon', issue_date: '2026-10-05', due_date: null, amount: 999, paid: 1 },
+      { provider: 'electrica', issue_date: '2026-10-03', due_date: null, amount: 100, paid: 1 },
+      { provider: 'electrica', issue_date: '2026-10-20', due_date: null, amount: 50, paid: 0 },
+    ],
+    { amount: 400, paid_at: '2026-10-20' },
+    '2026-10',
+  );
+  assert.equal(paid, 710.4);
+  assert.equal(monthPaid([], [], { amount: 400, paid_at: null }, '2026-10'), 0);
+});

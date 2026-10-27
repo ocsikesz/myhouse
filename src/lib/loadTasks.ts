@@ -16,6 +16,13 @@ export async function loadTasks(db: SQLiteDatabase): Promise<HomeTask[]> {
   const meters = await listMeters(db);
   const payments = await listAssociationPayments(db, 1);
   const thisMonthPayment = payments[0]?.month === month ? payments[0] : null;
+  const dayNumber = async (key: string) => {
+    const n = Number(await getSetting(db, key));
+    return Number.isInteger(n) && n >= 1 && n <= 31 ? n : null;
+  };
+  const assocDueDay = await dayNumber(SETTINGS.assocDueDay);
+  const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const defaultAssocDue = assocDueDay ? `${month}-${String(Math.min(assocDueDay, lastDay)).padStart(2, '0')}` : null;
 
   const authErrors: { provider: 'eon' | 'electrica'; message: string }[] = [];
   for (const provider of ['eon', 'electrica'] as const) {
@@ -41,6 +48,7 @@ export async function loadTasks(db: SQLiteDatabase): Promise<HomeTask[]> {
     authErrors,
     water: {
       reminderDay: Number((await getSetting(db, SETTINGS.waterReminderDay)) ?? '20') || 20,
+      deadlineDay: await dayNumber(SETTINGS.waterDeadlineDay),
       sentThisMonth: (await getSetting(db, SETTINGS.waterSentMonth)) === month,
       hasMeters: meters.some((m) => m.kind === 'apa'),
     },
@@ -55,7 +63,7 @@ export async function loadTasks(db: SQLiteDatabase): Promise<HomeTask[]> {
       ? {
           month: thisMonthPayment.month,
           amount: thisMonthPayment.amount,
-          dueDate: thisMonthPayment.due_date,
+          dueDate: thisMonthPayment.due_date ?? defaultAssocDue,
           paid: !!thisMonthPayment.paid_at,
         }
       : null,

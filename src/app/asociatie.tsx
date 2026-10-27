@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Body, Button, Card, CardHeader, Field, IconButton, Row, Screen, SectionTitle } from '@/components/ui';
-import { deleteAssociationPayment, listAssociationPayments, setAssociationPaid, upsertAssociationPayment } from '@/db/repo';
+import { deleteAssociationPayment, getSetting, listAssociationPayments, setAssociationPaid, upsertAssociationPayment } from '@/db/repo';
 import type { AssociationPayment } from '@/db/types';
 import { confirm, info } from '@/lib/dialogs';
 import {
@@ -18,6 +18,7 @@ import {
   previousMonth,
   todayIso,
 } from '@/lib/format';
+import { SETTINGS } from '@/lib/settingsKeys';
 import { useTheme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
 
@@ -30,7 +31,12 @@ export default function AssociationScreen() {
   const [due, setDue] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const { data, reload } = useDbQuery((d) => listAssociationPayments(d, 36));
+  const [defaultDueDay, setDefaultDueDay] = useState<number | null>(null);
+  const { data, reload } = useDbQuery(async (d) => {
+    const n = Number(await getSetting(d, SETTINGS.assocDueDay));
+    setDefaultDueDay(Number.isInteger(n) && n >= 1 && n <= 31 ? n : null);
+    return listAssociationPayments(d, 36);
+  });
 
   // La prima încărcare, precompletează luna curentă dacă există deja
   const initialized = useRef(false);
@@ -46,7 +52,14 @@ export default function AssociationScreen() {
     setMonth(m);
     const existing = payments.find((p) => p.month === m);
     setAmount(existing ? String(existing.amount).replace('.', ',') : '');
-    setDue(existing?.due_date ? formatDate(existing.due_date) : '');
+    setDue(existing?.due_date ? formatDate(existing.due_date) : defaultDue(m));
+  }
+
+  /** Scadența implicită din Setări pentru luna dată, ca ZZ.LL.AAAA */
+  function defaultDue(m: string): string {
+    if (!defaultDueDay) return '';
+    const last = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0).getDate();
+    return formatDate(`${m}-${String(Math.min(defaultDueDay, last)).padStart(2, '0')}`);
   }
 
   async function onSave() {

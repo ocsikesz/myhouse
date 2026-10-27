@@ -12,13 +12,15 @@ const base: TaskInput = {
   association: null,
 };
 
-test('fereastră deschisă: notificare la deschidere și în ultima zi', () => {
+test('fereastră deschisă: notificare zilnică până apare trimis', () => {
   const p = { meterId: 'eon:1', name: 'Gaz (E.ON)', unit: 'm³', inWindow: true, windowStart: '2026-10-22', windowEnd: '2026-10-30', submitted: false, lastIndex: 6030, error: null };
   const open = computeTasks({ ...base, providers: [p] }).find((t) => t.key.startsWith('index.'))!;
-  assert.equal(open.key, 'index.eon:1.2026-10-22.open');
+  assert.equal(open.key, 'index.eon:1.2026-10-22');
   assert.equal(open.urgency, 'normal');
+  assert.equal(open.notify, 'daily');
+  assert.equal(notificationKey(open, '2026-10-26'), 'notif:index.eon:1.2026-10-22:2026-10-26');
   const last = computeTasks({ ...base, today: '2026-10-30', providers: [p] }).find((t) => t.key.startsWith('index.'))!;
-  assert.equal(last.key, 'index.eon:1.2026-10-22.last');
+  assert.equal(last.urgency, 'urgent');
   assert.match(last.title, /Azi e ultima zi/);
   assert.equal(computeTasks({ ...base, providers: [{ ...p, submitted: true }] }).filter((t) => t.key.startsWith('index.')).length, 0);
 });
@@ -27,6 +29,22 @@ test('apă: doar după ziua de reminder și dacă nu s-a trimis', () => {
   assert.ok(computeTasks(base).some((t) => t.url === '/apa'));
   assert.ok(!computeTasks({ ...base, today: '2026-10-10' }).some((t) => t.url === '/apa'));
   assert.ok(!computeTasks({ ...base, water: { ...base.water, sentThisMonth: true } }).some((t) => t.url === '/apa'));
+});
+
+test('apă: termen setat de utilizator', () => {
+  const w = (today: string, sent = false) =>
+    computeTasks({ ...base, today, water: { reminderDay: 20, deadlineDay: 25, sentThisMonth: sent, hasMeters: true } }).find((t) => t.url === '/apa');
+  assert.equal(w('2026-10-19'), undefined);
+  assert.equal(w('2026-10-20')!.urgency, 'normal');
+  assert.match(w('2026-10-20')!.body, /Termen: 25\.10\.2026/);
+  assert.match(w('2026-10-24')!.title, /Mâine e termenul/);
+  assert.match(w('2026-10-25')!.title, /Azi e termenul/);
+  assert.match(w('2026-10-27')!.title, /a trecut/);
+  assert.equal(w('2026-10-27')!.notify, 'daily');
+  assert.equal(w('2026-10-27', true), undefined);
+  // Termen înaintea zilei de reminder: reminder-ul începe la termen; 31 în noiembrie → 30
+  const early = computeTasks({ ...base, today: '2026-11-30', water: { reminderDay: 20, deadlineDay: 31, sentThisMonth: false, hasMeters: true } }).find((t) => t.url === '/apa')!;
+  assert.match(early.title, /Azi e termenul/);
 });
 
 test('asociație: notificare doar aproape de scadență', () => {
