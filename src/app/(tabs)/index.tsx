@@ -1,13 +1,23 @@
 import { router, type Href } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { MeterDrum } from '@/components/MeterDrum';
 import { Badge, Body, Card, CardHeader, Chevron, Icon, IconBadge, Screen, SectionTitle, type IconName } from '@/components/ui';
-import { getSetting, latestReading, listAssociationPayments, listMeters, listProviderStatuses } from '@/db/repo';
-import { currentMonth, formatDate, formatDateTime, formatLei, formatMonth, formatNumber, todayIso } from '@/lib/format';
+import {
+  getSetting,
+  listAssociationPayments,
+  listMeters,
+  listProviderInvoices,
+  listProviderMonthly,
+  listProviderStatuses,
+  listReadings,
+} from '@/db/repo';
+import type { Meter } from '@/db/types';
+import { addMonths, currentMonth, formatDate, formatDateTime, formatLei, formatMonth, formatNumber, todayIso } from '@/lib/format';
 import { loadTasks } from '@/lib/loadTasks';
+import { kindConsumption, monthCost, type ConsumptionRow, type KindConsumption } from '@/lib/monthSummary';
+import { monthlyConsumption } from '@/lib/stats';
 import type { HomeTask } from '@/lib/tasks';
 import { useTheme, type Theme } from '@/lib/theme';
 import { useDbQuery } from '@/lib/useDbQuery';
@@ -22,6 +32,11 @@ const ZILE = ['duminică', 'luni', 'marți', 'miercuri', 'joi', 'vineri', 'sâmb
 function greeting(): string {
   const h = new Date().getHours();
   return h < 11 ? 'Bună dimineața' : h < 18 ? 'Bună ziua' : 'Bună seara';
+}
+
+/** 'septembrie 2026' → 'septembrie' */
+function monthName(month: string): string {
+  return formatMonth(month).split(' ')[0];
 }
 
 /** Iconița și culoarea unei sarcini, după tipul ei (prefixul cheii). */
@@ -44,19 +59,52 @@ function taskLook(task: HomeTask, t: Theme): { icon: IconName; color: string } {
   }
 }
 
+/** Consumul lunar al unui contor: de la furnizor dacă îl raportează, altfel din diferența indexurilor. */
+async function meterRows(d: Parameters<typeof listMeters>[0], m: Meter, month: string): Promise<ConsumptionRow[]> {
+  if (m.provider !== 'deservcom') {
+    const provider = await listProviderMonthly(d, m.id, addMonths(month, -4));
+    if (provider.some((r) => r.consumption !== null)) return provider.map((r) => ({ month: r.month, consumption: r.consumption }));
+  }
+  // La apă lucrăm cu m³ întregi, ca în restul aplicației
+  const readings = (await listReadings(d, m.id, 24)).map((r) =>
+    m.kind === 'apa' ? { ...r, value: Math.trunc(r.value) } : r,
+  );
+  return monthlyConsumption(readings, month, 5).map((r) => ({ month: r.month, consumption: r.value }));
+}
+
 export default function HomeScreen() {
   const t = useTheme();
   const db = useSQLiteContext();
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, reload } = useDbQuery(async (d) => {
+    const month = currentMonth();
     const meters = await listMeters(d);
-    const water = meters.filter((m) => m.kind === 'apa');
+    const ofKind = (k: Meter['kind']) => meters.filter((m) => m.kind === k);
+    const consumption = async (k: Meter['kind']) =>
+      kindConsumption(await Promise.all(ofKind(k).map((m) => meterRows(d, m, month))), month);
+
+    const providerMeters = meters.filter((m) => m.provider !== 'deservcom');
+    const invoices = (
+      await Promise.all(
+        providerMeters.map(async (m) =>
+          (await listProviderInvoices(d, m.id, `${month}-01`)).map((i) => ({ ...i, provider: m.provider })),
+        ),
+      )
+    ).flat();
+    const payment = (await listAssociationPayments(d, 3)).find((p) => p.month === month) ?? null;
+
+    const water = await Promise.all(ofKind('apa').map(async (m) => ({ meter: m, last: (await listReadings(d, m.id, 1))[0] ?? null })));
+
     return {
       tasks: await loadTasks(d),
-      water: await Promise.all(water.map(async (m) => ({ meter: m, last: await latestReading(d, m.id) }))),
+      gas: await consumption('gaz'),
+      electricity: await consumption('electricitate'),
+      waterUse: await consumption('apa'),
+      cost: monthCost(invoices, payment?.amount ?? null, month),
+      water,
       providers: await listProviderStatuses(d),
-      payment: (await listAssociationPayments(d, 1))[0] ?? null,
+      payment,
       lastSync: await getSetting(d, LAST_SYNC),
       hasAccounts: !!(await getCredentials('eon')) || !!(await getCredentials('electrica')),
     };
@@ -85,30 +133,76 @@ export default function HomeScreen() {
   if (!data) return <Screen>{null}</Screen>;
 
   const month = currentMonth();
-  const payment = data.payment?.month === month ? data.payment : null;
   const now = new Date();
-  const urgent = data.tasks.filter((x) => x.urgency === 'urgent').length;
+  const { cost, payment } = data;
+
+  /** Valoarea de consum + luna, dacă nu e luna curentă */
+  const use = (c: KindConsumption, decimals = 0) => ({
+    value: c.value !== null ? formatNumber(c.value, decimals) : '—',
+    note: c.month && c.month !== month ? `în ${monthName(c.month)}` : null,
+  });
+
+  const gasMeters = data.providers.filter((p) => p.kind === 'gaz');
+  const elMeters = data.providers.filter((p) => p.kind === 'electricitate');
+  const goTo = (rows: typeof data.providers) =>
+    rows.length === 1 ? router.push(`/contor/${encodeURIComponent(rows[0].meter_id)}`) : router.push(rows.length ? '/utilitati' : '/setari');
+  const providerBadge = (rows: typeof data.providers) =>
+    rows.some((r) => r.in_window && r.submitted_index === null) ? (
+      <Badge text="index de trimis" color={t.danger} />
+    ) : rows.some((r) => r.submitted_index !== null) ? (
+      <Badge text="index trimis" color={t.success} />
+    ) : null;
+
+  const waterThisMonth = data.water.filter((w) => w.last?.read_at.startsWith(month));
+  const waterBadge =
+    waterThisMonth.length === 0 ? null : waterThisMonth.every((w) => w.last?.sent_at) ? (
+      <Badge text="trimis" color={t.success} />
+    ) : (
+      <Badge text="netrimis" color={t.warning} />
+    );
+
+  const costParts = [
+    cost.eon > 0 ? `E.ON ${formatLei(cost.eon)}` : null,
+    cost.electrica > 0 ? `Electrica ${formatLei(cost.electrica)}` : null,
+    cost.association > 0 ? `Asociație ${formatLei(cost.association)}` : null,
+  ].filter(Boolean);
+
+  const gas = use(data.gas);
+  const el = use(data.electricity);
+  const wat = use(data.waterUse);
 
   return (
     <Screen refreshing={refreshing} onRefresh={() => refresh(true)}>
+      {/* Rezumatul lunii */}
       <View style={[styles.hero, { backgroundColor: t.hero }]}>
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={styles.heroTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
+              {ZILE[now.getDay()]}, {formatDate(todayIso())}
+            </Text>
+            <Text style={[styles.heroGreeting, { color: t.heroText }]}>{greeting()}</Text>
+          </View>
+          <View style={[styles.heroIcon, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+            <Icon name={data.tasks.length === 0 ? 'home-heart' : 'home-alert-outline'} color={t.heroText} size={28} />
+          </View>
+        </View>
+
+        <View>
+          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>Cost {formatMonth(month)}</Text>
+          <Text style={[styles.heroTotal, { color: t.heroText }]}>{formatLei(cost.total)}</Text>
           <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
-            {ZILE[now.getDay()]}, {formatDate(todayIso())}
-          </Text>
-          <Text style={[styles.heroTitle, { color: t.heroText }]}>{greeting()}</Text>
-          <Text style={[styles.heroSmall, { color: t.heroMuted }]}>
-            {data.tasks.length === 0
-              ? 'Totul e la zi în casă.'
-              : `${data.tasks.length} ${data.tasks.length === 1 ? 'lucru' : 'lucruri'} de făcut${urgent ? `, ${urgent} urgent${urgent === 1 ? '' : 'e'}` : ''}`}
+            {costParts.length ? costParts.join(' · ') : 'Nicio factură și nicio sumă la asociație luna asta, încă.'}
           </Text>
         </View>
-        <View style={[styles.heroIcon, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <Icon name={data.tasks.length === 0 ? 'home-heart' : 'home-alert-outline'} color={t.heroText} size={34} />
+
+        <View style={styles.pills}>
+          <Pill icon="fire" label="Gaz" value={gas.value} unit="m³" note={gas.note} />
+          <Pill icon="water-outline" label="Apă" value={wat.value} unit="m³" note={wat.note} />
+          <Pill icon="lightning-bolt-outline" label="Curent" value={el.value} unit="kWh" note={el.note} />
         </View>
       </View>
 
-      {data.tasks.length > 0 && <SectionTitle>De făcut</SectionTitle>}
+      {data.tasks.length > 0 && <SectionTitle>De făcut · {data.tasks.length}</SectionTitle>}
       {data.tasks.map((task) => {
         const look = taskLook(task, t);
         const isUrgent = task.urgency === 'urgent';
@@ -118,77 +212,70 @@ export default function HomeScreen() {
             onPress={() => router.push(task.url as Href)}
             style={isUrgent ? { borderColor: t.danger, borderWidth: 1.5 } : undefined}
           >
-            <CardHeader
-              icon={look.icon}
-              color={look.color}
-              title={task.title}
-              subtitle={task.body}
-              right={<Chevron />}
-            />
+            <CardHeader icon={look.icon} color={look.color} title={task.title} subtitle={task.body} right={<Chevron />} />
           </Card>
         );
       })}
 
       <SectionTitle>Casa</SectionTitle>
       <View style={styles.tiles}>
-        <Card onPress={() => router.push('/apa')} style={styles.tile}>
-          <IconBadge name="water-outline" color={t.water} />
-          <Text style={[styles.tileTitle, { color: t.text }]}>Apă rece</Text>
-          {data.water.map(({ meter, last }) => (
-            <Text key={meter.id} style={[styles.tileLine, { color: t.textMuted }]} numberOfLines={1}>
-              {meter.name.split('–').pop()?.trim()}:{' '}
-              <Text style={{ color: t.text, fontWeight: '700' }}>{last ? `${formatNumber(Math.trunc(last.value), 0)} ${meter.unit}` : '—'}</Text>
-            </Text>
-          ))}
-          {data.water[0]?.last ? (
-            <Text style={[styles.tileLine, { color: t.textMuted }]}>{formatDate(data.water[0].last.read_at)}</Text>
-          ) : null}
-        </Card>
-        <Card onPress={() => router.push('/asociatie')} style={styles.tile}>
-          <IconBadge name="office-building-outline" color={t.association} />
-          <Text style={[styles.tileTitle, { color: t.text }]}>Asociația</Text>
-          <Text style={[styles.tileLine, { color: t.textMuted, textTransform: 'capitalize' }]}>{formatMonth(month)}</Text>
-          <Text style={[styles.tileAmount, { color: t.text }]}>{payment ? formatLei(payment.amount) : '—'}</Text>
-          {payment ? (
-            <Badge text={payment.paid_at ? 'plătit' : 'de plată'} color={payment.paid_at ? t.success : t.danger} />
-          ) : (
-            <Text style={[styles.tileLine, { color: t.textMuted }]}>sumă neintrodusă</Text>
-          )}
-        </Card>
+        <Tile
+          icon="fire"
+          color={t.gas}
+          title="Gaz"
+          value={gas.value}
+          unit="m³"
+          note={gas.note}
+          onPress={() => goTo(gasMeters)}
+          badge={providerBadge(gasMeters)}
+          lines={
+            gasMeters.length === 0
+              ? ['Cont neconectat']
+              : gasMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`)
+          }
+        />
+        <Tile
+          icon="lightning-bolt-outline"
+          color={t.electricity}
+          title="Curent"
+          value={el.value}
+          unit="kWh"
+          note={el.note}
+          onPress={() => goTo(elMeters)}
+          badge={providerBadge(elMeters)}
+          lines={
+            elMeters.length === 0
+              ? ['Cont neconectat']
+              : elMeters.map((p) => `Index ${p.last_index !== null ? formatNumber(p.last_index, 0) : '—'}`)
+          }
+        />
       </View>
-
-      {data.providers.length > 0 && (
-        <>
-          <SectionTitle>Energie și gaz</SectionTitle>
-          {data.providers.map((p) => {
-            const color = p.kind === 'gaz' ? t.gas : t.electricity;
-            return (
-              <Card key={p.meter_id} onPress={() => router.push(`/contor/${encodeURIComponent(p.meter_id)}`)}>
-                <CardHeader
-                  icon={p.kind === 'gaz' ? 'fire' : 'lightning-bolt-outline'}
-                  color={color}
-                  title={p.name}
-                  subtitle={
-                    p.window_start
-                      ? `Autocitire ${formatDate(p.window_start)} – ${p.window_end ? formatDate(p.window_end) : '?'}`
-                      : 'Autocitirea nu e anunțată încă'
-                  }
-                  right={
-                    p.submitted_index !== null ? (
-                      <Badge text="trimis" color={t.success} />
-                    ) : p.in_window ? (
-                      <Badge text="de trimis" color={t.danger} />
-                    ) : (
-                      <Chevron />
-                    )
-                  }
-                />
-                <MeterDrum value={p.last_index} unit={p.unit} size="small" />
-              </Card>
-            );
-          })}
-        </>
-      )}
+      <View style={styles.tiles}>
+        <Tile
+          icon="water-outline"
+          color={t.water}
+          title="Apă rece"
+          value={wat.value}
+          unit="m³"
+          note={wat.note}
+          onPress={() => router.push('/apa')}
+          badge={waterBadge}
+          lines={data.water.map(
+            ({ meter, last }) =>
+              `${meter.name.split('–').pop()?.trim()} ${last ? formatNumber(Math.trunc(last.value), 0) : '—'}`,
+          )}
+        />
+        <Tile
+          icon="office-building-outline"
+          color={t.association}
+          title="Asociația"
+          value={payment ? formatNumber(payment.amount, 2) : '—'}
+          unit="lei"
+          onPress={() => router.push('/asociatie')}
+          badge={payment ? <Badge text={payment.paid_at ? 'plătit' : 'de plată'} color={payment.paid_at ? t.success : t.danger} /> : null}
+          lines={[payment ? (payment.due_date ? `Scadent ${formatDate(payment.due_date)}` : monthName(month)) : 'Sumă neintrodusă']}
+        />
+      </View>
 
       {!data.hasAccounts && (
         <Card onPress={() => router.push('/setari')}>
@@ -196,28 +283,98 @@ export default function HomeScreen() {
             icon="link-variant"
             color={t.accent}
             title="Conectează E.ON și Electrica"
-            subtitle="Ca să primești reminder-e de autocitire și să trimiți indexul din aplicație."
+            subtitle="Ca să vezi consumul și facturile și să trimiți indexul din aplicație."
             right={<Chevron />}
           />
         </Card>
       )}
-      {data.lastSync ? (
-        <Body muted>
-          Actualizat {formatDateTime(data.lastSync)} · trage în jos ca să actualizezi
-        </Body>
-      ) : null}
+      {data.lastSync ? <Body muted>Actualizat {formatDateTime(data.lastSync)} · trage în jos ca să actualizezi</Body> : null}
     </Screen>
   );
 }
 
+/** Consumul unei utilități în cardul de sus. */
+function Pill({ icon, label, value, unit, note }: { icon: IconName; label: string; value: string; unit: string; note: string | null }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.pill, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+      <View style={styles.pillHead}>
+        <Icon name={icon} color={t.heroMuted} size={15} />
+        <Text style={[styles.pillLabel, { color: t.heroMuted }]}>{label}</Text>
+      </View>
+      <Text style={[styles.pillValue, { color: t.heroText }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value} <Text style={styles.pillUnit}>{unit}</Text>
+      </Text>
+      {note ? <Text style={[styles.pillNote, { color: t.heroMuted }]}>{note}</Text> : null}
+    </View>
+  );
+}
+
+/** Dala unei utilități: consumul lunii mare, apoi indexuri / detalii și starea. */
+function Tile({
+  icon,
+  color,
+  title,
+  value,
+  unit,
+  note,
+  lines,
+  badge,
+  onPress,
+}: {
+  icon: IconName;
+  color: string;
+  title: string;
+  value: string;
+  unit: string;
+  note?: string | null;
+  lines: string[];
+  badge: ReactNode;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Card onPress={onPress} style={styles.tile}>
+      <View style={styles.tileHead}>
+        <IconBadge name={icon} color={color} size={36} />
+        <Text style={[styles.tileTitle, { color: t.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
+      <Text style={[styles.tileValue, { color: t.text }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value} <Text style={[styles.tileUnit, { color: t.textMuted }]}>{unit}</Text>
+      </Text>
+      {note ? <Text style={[styles.tileLine, { color: t.textMuted }]}>consum {note}</Text> : null}
+      {lines.map((l, i) => (
+        <Text key={i} style={[styles.tileLine, { color: t.textMuted }]} numberOfLines={1}>
+          {l}
+        </Text>
+      ))}
+      <View style={{ flex: 1 }} />
+      {badge}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
-  hero: { borderRadius: 22, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heroTitle: { fontSize: 28, fontWeight: '800' },
-  heroSmall: { fontSize: 14 },
-  heroIcon: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  hero: { borderRadius: 22, padding: 18, gap: 16 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroGreeting: { fontSize: 22, fontWeight: '800' },
+  heroSmall: { fontSize: 13 },
+  heroTotal: { fontSize: 34, fontWeight: '800', fontVariant: ['tabular-nums'], marginVertical: 2 },
+  heroIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  pills: { flexDirection: 'row', gap: 8 },
+  pill: { flex: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, gap: 2 },
+  pillHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pillLabel: { fontSize: 12, fontWeight: '600' },
+  pillValue: { fontSize: 19, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  pillUnit: { fontSize: 12, fontWeight: '600' },
+  pillNote: { fontSize: 11 },
   tiles: { flexDirection: 'row', gap: 12 },
-  tile: { flex: 1, gap: 6 },
-  tileTitle: { fontSize: 16, fontWeight: '700', marginTop: 4 },
+  tile: { flex: 1, gap: 4 },
+  tileHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  tileTitle: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
+  tileValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  tileUnit: { fontSize: 13, fontWeight: '600' },
   tileLine: { fontSize: 13 },
-  tileAmount: { fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
 });
