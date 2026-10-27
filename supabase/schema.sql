@@ -16,7 +16,7 @@ create index if not exists records_pull on public.records (user_id, server_ts);
 
 -- server_ts e mereu ora serverului, ca telefoanele să poată cere „ce s-a schimbat de la ...”
 create or replace function public.records_touch() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   new.server_ts := clock_timestamp();
   return new;
@@ -31,8 +31,8 @@ alter table public.records enable row level security;
 drop policy if exists "records_own" on public.records;
 create policy "records_own" on public.records
   for all to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
 
 -- Pozele contoarelor: bucket privat, fiecare cont vede doar folderul lui (<user_id>/...)
 insert into storage.buckets (id, name, public)
@@ -45,10 +45,10 @@ drop policy if exists "photos_own_update" on storage.objects;
 drop policy if exists "photos_own_delete" on storage.objects;
 
 create policy "photos_own_select" on storage.objects for select to authenticated
-  using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "photos_own_insert" on storage.objects for insert to authenticated
-  with check (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+  with check (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "photos_own_update" on storage.objects for update to authenticated
-  using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "photos_own_delete" on storage.objects for delete to authenticated
-  using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);

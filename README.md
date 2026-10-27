@@ -29,8 +29,8 @@ Configurare, o singură dată:
 2. **SQL Editor → New query** → lipește conținutul `supabase/schema.sql` → **Run**.
 3. **Authentication → Users → Add user → Create new user**: emailul și parola familiei, bifat **Auto Confirm User**.
 4. **Project Settings → API**: copiază *Project URL* și cheia *anon public*.
-5. GitHub → repo → **Settings → Secrets and variables → Actions → New repository secret**:
-   `SUPABASE_URL` și `SUPABASE_ANON_KEY`. Apoi rulează din nou workflow-ul (sau fă un push).
+5. Adresa și cheia „anon” sunt în `app.config.ts` (proiectul „Brasov5b/51”). Pentru alt proiect, le schimbi acolo
+   sau pui secretele `SUPABASE_URL` / `SUPABASE_ANON_KEY` în repo (au prioritate).
 6. Pe fiecare telefon: **Setări → Familie și backup** → conectare cu contul familiei.
 
 ## Structură
