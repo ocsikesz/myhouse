@@ -24,14 +24,20 @@ function WaterSettings() {
   const [deadline, setDeadline] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Se reîncarcă la fiecare intrare în tab și când vin setări de pe alt telefon al familiei
+  const { data: stored } = useDbQuery(async (d) => ({
+    phone: (await getSetting(d, SETTINGS.waterPhone)) ?? '',
+    identification: (await getSetting(d, SETTINGS.waterIdentification)) ?? '',
+    day: (await getSetting(d, SETTINGS.waterReminderDay)) || '20',
+    deadline: (await getSetting(d, SETTINGS.waterDeadlineDay)) ?? '',
+  }));
   useEffect(() => {
-    (async () => {
-      setPhone((await getSetting(db, SETTINGS.waterPhone)) ?? '');
-      setIdentification((await getSetting(db, SETTINGS.waterIdentification)) ?? '');
-      setDay((await getSetting(db, SETTINGS.waterReminderDay)) ?? '20');
-      setDeadline((await getSetting(db, SETTINGS.waterDeadlineDay)) ?? '');
-    })();
-  }, [db]);
+    if (!stored) return;
+    setPhone(stored.phone);
+    setIdentification(stored.identification);
+    setDay(stored.day);
+    setDeadline(stored.deadline);
+  }, [stored]);
 
   async function onSave() {
     if (phone.trim() && !normalizeRoPhone(phone)) {
@@ -102,9 +108,10 @@ function AssociationSettings() {
   const [day, setDay] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const { data: stored } = useDbQuery(async (d) => (await getSetting(d, SETTINGS.assocDueDay)) ?? '');
   useEffect(() => {
-    (async () => setDay((await getSetting(db, SETTINGS.assocDueDay)) ?? ''))();
-  }, [db]);
+    if (stored !== null) setDay(stored);
+  }, [stored]);
 
   async function onSave() {
     const d = day.trim() ? Number(day) : null;
