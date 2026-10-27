@@ -73,10 +73,11 @@ jobs:
       # R8 (activ implicit în SDK 58) elimină WorkDatabase_Impl din WorkManager →
       # crash la pornire în InitializationProvider. Aplicație privată: fără minificare.
       # Doar arm64 (telefoane) + x86_64 (emulatorul de test): APK de ~2× mai mic.
-      - name: Build release APK
+      # Același build produce și AAB-ul pentru Google Play (Internal testing)
+      - name: Build release APK + AAB
         working-directory: android
         run: |
-          ./gradlew assembleRelease --no-daemon \
+          ./gradlew assembleRelease bundleRelease --no-daemon \
             -Pandroid.enableMinifyInReleaseBuilds=false \
             -PreactNativeArchitectures=arm64-v8a,x86_64 \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
@@ -88,6 +89,7 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk "out/Indexa-${BUILD_NUMBER}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "out/Indexa-${BUILD_NUMBER}.aab"
 
       - name: Upload APK for smoke test
         uses: actions/upload-artifact@v4
@@ -103,7 +105,9 @@ jobs:
           body: |
             Commit: ${{ github.sha }}
             ${{ github.event.head_commit.message }}
-          files: out/Indexa-${{ github.run_number }}.apk
+          files: |
+            out/Indexa-${{ github.run_number }}.apk
+            out/Indexa-${{ github.run_number }}.aab
           make_latest: true
 
   # Pornește APK-ul pe un emulator Android și salvează logcat-ul pe branch-ul
