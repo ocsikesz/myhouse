@@ -1,0 +1,111 @@
+10-29 09:31:04.418   519   798 I SdkSandboxManager: No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10192, mPackageName='ro.ocsike.indexa, mAppProcessToken='null'}
+10-29 09:31:04.942  3324  3324 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-29 09:31:04.953  3324  3324 I AndroidRuntime: Using default boot image
+10-29 09:31:04.953  3324  3324 I AndroidRuntime: Leaving lock profiling enabled
+10-29 09:31:05.096   845   845 I SafetyLabelChangedBroadcastReceiver: received broadcast packageName: ro.ocsike.indexa, current user: UserHandle{0}, packageChangeEvent: NEW_INSTALL, intent user: UserHandle{0}
+10-29 09:31:05.304  3324  3324 W libc    : Access denied finding property "ro.product.name_for_attestation"
+10-29 09:31:05.304  3324  3324 W libc    : Access denied finding property "ro.product.brand_for_attestation"
+10-29 09:31:05.304  3324  3324 W libc    : Access denied finding property "ro.product.model_for_attestation"
+10-29 09:31:05.305  3324  3324 D AndroidRuntime: Calling main entry com.android.commands.monkey.Monkey
+10-29 09:31:05.305  3324  3324 W Monkey  : args: [-p, ro.ocsike.indexa, -c, android.intent.category.LAUNCHER, 1]
+10-29 09:31:05.305  3324  3324 W Monkey  :  arg: "ro.ocsike.indexa"
+10-29 09:31:05.305  3324  3324 W Monkey  : data="ro.ocsike.indexa"
+10-29 09:31:05.599   519  1849 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=ro.ocsike.indexa/.MainActivity} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+10-29 09:31:05.604   831   863 V WindowManagerShell: Transition requested: android.os.BinderProxy@1ab290b TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=ro.ocsike.indexa/.MainActivity } baseActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} topActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} origActivity=null realActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} numActivities=1 lastActiveTime=49541 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@5e403e8} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{8b68a01 ro.ocsike.indexa.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-29 09:31:05.708   519  2305 D CoreBackPreview: Window{a0484e u0 Splash Screen ro.ocsike.indexa}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@fcdba9d, mPriority=0, mIsAnimationCallback=false}
+10-29 09:31:05.722   519   549 I ActivityManager: Start proc 3409:ro.ocsike.indexa/u0a192 for next-top-activity {ro.ocsike.indexa/ro.ocsike.indexa.MainActivity}
+10-29 09:31:05.907  3324  3324 I AndroidRuntime: VM exiting with result code 0.
+10-29 09:31:05.961  3409  3409 D nativeloader: Configuring clns-6 for other apk /data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/lib/x86_64:/data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/ro.ocsike.indexa
+10-29 09:31:05.971  3409  3409 V GraphicsEnvironment: ANGLE GameManagerService for ro.ocsike.indexa: false
+10-29 09:31:05.972  3409  3409 V GraphicsEnvironment: ro.ocsike.indexa is not listed in per-application setting
+10-29 09:31:06.018   519   538 V WindowManager: Sent Transition #6 createdAt=10-29 09:31:05.363 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=ro.ocsike.indexa/.MainActivity } baseActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} topActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} origActivity=null realActivity=ComponentInfo{ro.ocsike.indexa/ro.ocsike.indexa.MainActivity} numActivities=1 lastActiveTime=49541 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{3214bfe Task{fc7855c #8 type=standard A=10192:ro.ocsike.indexa}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{ec8ef5f ro.ocsike.indexa.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-29 09:31:06.019   519   538 V WindowManager:     info={id=6 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{3214bfe Task{fc7855c #8 type=standard A=10192:ro.ocsike.indexa}}} m=OPEN f=NONE leash=Surface(name=Task=8)/@0x5003a9b sb=Rect(0, 0 - 320, 640) eb=Rect(0, 0 - 320, 640) d=0},{WCT{RemoteToken{6f70dac Task{61fba5b #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x75c29d4 sb=Rect(0, 0 - 320, 640) eb=Rect(0, 0 - 320, 640) d=0}]}
+10-29 09:31:06.025  3409  3409 W SoLoader: Recording new base apk path: /data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/base.apk
+10-29 09:31:06.026  3409  3409 I SoLoader: Preparing SO source: DirectApkSoSource[root = [/data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/base.apk!/lib/x86_64]]
+10-29 09:31:06.035  3409  3409 I SoLoader: Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/~~yg7KjBXYjzgjLEwrE7wn6g==/ro.ocsike.indexa-2EO3L7i9BshVbR1khuP8aA==/lib/x86_64 flags = 0]]
+10-29 09:31:06.691   519  1198 D CoreBackPreview: Window{d93ebe1 u0 ro.ocsike.indexa/ro.ocsike.indexa.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@482651d, mPriority=0, mIsAnimationCallback=false}
+10-29 09:31:07.004   519   538 I ActivityTaskManager: Displayed ro.ocsike.indexa/.MainActivity for user 0: +1s649ms
+10-29 09:31:07.037   519  2458 I ImeTracker: ro.ocsike.indexa:c76c7532: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-29 09:31:07.037   519  2458 I ImeTracker: ro.ocsike.indexa:c76c7532: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-29 09:31:07.051   519  1198 D CoreBackPreview: Window{a0484e u0 Splash Screen ro.ocsike.indexa}: Setting back callback null
+10-29 09:31:07.055  1042  1042 D CarrierSvcBindHelper: onPackageAdded: ro.ocsike.indexa
+10-29 09:31:07.058   519  2455 W InputManager-JNI: Input channel object 'a0484e Splash Screen ro.ocsike.indexa (client)' was disposed without first being removed with the input manager!
+10-29 09:31:07.116  3409  3471 I ExpoModulesCore: ✅ AppContext was initialized
+10-29 09:31:07.228  1042  1361 D ImsResolver: maybeAddedImsService, packageName: ro.ocsike.indexa
+10-29 09:31:07.254  1565  1565 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=ro.ocsike.indexa fieldId=0 fieldName=null extras=null}, false)
+10-29 09:31:07.282  3409  3473 I ExpoModulesCore: ✅ JSI interop was installed
+10-29 09:31:07.292  3409  3473 W ExpoModulesV2: expo.modules.crypto.DigestAlgorithm does not implement io.github.expo.modules.v2.Enumerable. It crosses to JavaScript here, but R8 keeps an enum's entries and its property only when it does, so a release build may fail on it or send its entry names instead
+10-29 09:31:07.300  3409  3473 I ExpoModulesCore: ✅ Expo Modules v2 installed 3 module(s) on globalThis.expo.modules
+10-29 09:31:07.321  3409  3473 I ExpoModulesCore: ✅ Constants were exported
+10-29 09:31:07.701  3409  3473 I ReactNativeJS: Running "main"
+10-29 09:31:07.713  3409  3473 W ExpoModulesV2: expo.modules.sqlite.SQLAction does not implement io.github.expo.modules.v2.Enumerable. It crosses to JavaScript here, but R8 keeps an enum's entries and its property only when it does, so a release build may fail on it or send its entry names instead
+10-29 09:31:07.714  3409  3473 W ExpoModulesV2: expo.modules.crypto.DigestOptions$Encoding does not implement io.github.expo.modules.v2.Enumerable. It crosses to JavaScript here, but R8 keeps an enum's entries and its property only when it does, so a release build may fail on it or send its entry names instead
+10-29 09:31:07.765  1042  1042 D CarrierSvcBindHelper: onPackageModified: ro.ocsike.indexa
+10-29 09:31:07.880  1042  1361 D ImsResolver: maybeAddedImsService, packageName: ro.ocsike.indexa
+10-29 09:31:08.934  3409  3486 I TaskService: Registered task with name 'casamea-sync' for app with scoping identifier 'ro.ocsike.indexa'.
+10-29 09:31:09.182   519  1850 E JobScheduler.JobStatus: App ro.ocsike.indexa became active but still in NEVER bucket
+10-29 09:31:09.213  1689  1689 I AiAiEcho: AppFetcherImplV2 updateApps package:[ro.ocsike.indexa], userId:[0], reason:[package is added.].
+10-29 09:31:09.249  1042  1042 D CarrierSvcBindHelper: onPackageModified: ro.ocsike.indexa
+10-29 09:31:09.329  1042  1361 D ImsResolver: maybeAddedImsService, packageName: ro.ocsike.indexa
+10-29 09:31:10.535  1689  1689 I AiAiEcho: AppFetcherImpl onPackageChanged ro.ocsike.indexa.
+10-29 09:31:10.535  1689  3408 I AiAiEcho: AppIndexer Package:[ro.ocsike.indexa] UserProfile:[0] Enabled:[true].
+10-29 09:31:10.535  1689  3408 I AiAiEcho: AppFetcherImplV2 updateApps package:[ro.ocsike.indexa], userId:[0], reason:[package is updated.].
+10-29 09:31:12.152  1689  1689 I AiAiEcho: AppFetcherImpl onPackageChanged ro.ocsike.indexa.
+10-29 09:31:12.156  1689  3407 I AiAiEcho: AppIndexer Package:[ro.ocsike.indexa] UserProfile:[0] Enabled:[true].
+10-29 09:31:12.157  1689  3407 I AiAiEcho: AppFetcherImplV2 updateApps package:[ro.ocsike.indexa], userId:[0], reason:[package is updated.].
+10-29 09:31:12.353  3409  3881 D ProfileInstaller: Installing profile for ro.ocsike.indexa
+10-29 09:31:14.441  2957  3011 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:14.474  2957  3011 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:15.290  1482  3364 W libc    : Access denied finding property "ro.hardware.chipname"
+10-29 09:31:16.869  1042  1042 D CarrierSvcBindHelper: onPackageModified: ro.ocsike.indexa
+10-29 09:31:16.893  1042  1361 D ImsResolver: maybeAddedImsService, packageName: ro.ocsike.indexa
+10-29 09:31:18.054  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.130  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.162  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.168  1689  1689 I AiAiEcho: AppFetcherImpl onPackageChanged ro.ocsike.indexa.
+10-29 09:31:18.170  1689  3040 I AiAiEcho: AppIndexer Package:[ro.ocsike.indexa] UserProfile:[0] Enabled:[true].
+10-29 09:31:18.170  1689  3040 I AiAiEcho: AppFetcherImplV2 updateApps package:[ro.ocsike.indexa], userId:[0], reason:[package is updated.].
+10-29 09:31:18.412  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.448  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.580  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:18.583  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:19.138  2957  3549 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:19.138  2957  3549 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:21.482  2957  3549 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:21.482  2957  3549 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:21.741  2957  3494 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:21.750  2957  3494 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:21.813  1482  3274 I BlockstoreStorage: Clearing Blockstore Data for package ro.ocsike.indexa [CONTEXT service_id=258 ]
+10-29 09:31:22.749  2957  3549 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:22.749  2957  3549 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:24.165  2957  3011 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:24.165  2957  3011 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:24.656  1482  3351 W libc    : Access denied finding property "ro.hardware.chipname"
+10-29 09:31:25.129  2957  3549 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:25.129  2957  3549 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:27.018  2957  4516 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:27.018  2957  4516 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:27.754  2957  3011 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:27.759  2957  3011 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:28.964  1044  1060 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:29.005  1044  1060 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:29.029  1044  1060 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:29.587  2957  3494 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:29.587  2957  3494 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:37.547  2957  3549 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+10-29 09:31:37.547  2957  3549 W libc    : Access denied finding property "service.adb.tls.port"
+10-29 09:31:44.021  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.023  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.189  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.190  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.209  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.235  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.280  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.352  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.358  1044  1059 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.374  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.411  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.415  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:44.427  1044  1069 W libc    : Access denied finding property "ro.vendor.aware_available"
+10-29 09:31:50.772   519   535 W ActivityManager: Scheduling restart of crashed service com.google.android.gms/.nearby.exposurenotification.service.ExposureNotificationInternalService in 260988ms for start-requested
+10-29 09:31:50.772   519   535 W ActivityManager: Scheduling restart of crashed service com.google.android.gms/.nearby.exposurenotification.service.ExposureMatchingService in 270988ms for start-requested
