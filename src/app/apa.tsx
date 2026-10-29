@@ -331,7 +331,7 @@ export default function WaterScreen() {
           );
         })}
         <Button
-          title="Adaugă o citire mai veche"
+          title="Adaugă citiri mai vechi"
           icon="history"
           variant="secondary"
           onPress={() => setOldOpen(true)}
